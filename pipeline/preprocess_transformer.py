@@ -1,12 +1,12 @@
 import json
 import os
+import statistics
 from collections import defaultdict
 
 # 1. Base Project Configuration
 # Automatically resolves to C:\Users\deree\My Work\WITS\Honours\Project\Wits_Honours_Project\pipeline
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Goes up one level to Wits_Honours_Project
 BASE_DIR = os.path.dirname(SCRIPT_DIR)
 
 # Automatically resolves to C:\Users\deree\My Work\WITS\Honours\Project\Wits_Honours_Project\datasets
@@ -26,7 +26,7 @@ def load_clean_and_sort_interactions(file_path):
         for line in f:
             if not line.strip():
                 continue
-            
+
             try:
                 item = json.loads(line)
             except json.JSONDecodeError:
@@ -38,54 +38,105 @@ def load_clean_and_sort_interactions(file_path):
 
             if not user_id or not item_id or timestamp is None:
                 continue
+
             if not isinstance(user_id, str) or not isinstance(item_id, str):
                 continue
+
             if isinstance(timestamp, (int, float)) and timestamp <= 0:
                 continue
 
             user_histories[user_id].append((timestamp, item_id))
 
     clean_histories = {}
+
     for user_id, interactions in user_histories.items():
+
         interactions.sort(key=lambda x: x[0])
-        
-        deduped_interactions = []
-        for ts, item_id in interactions:
-            if not deduped_interactions or deduped_interactions[-1][1] != item_id:
-                deduped_interactions.append((ts, item_id))
-                
-        clean_histories[user_id] = deduped_interactions
+
+        deduped = []
+
+        for ts, item in interactions:
+
+            # Remove ONLY identical duplicate events
+            if deduped:
+                last_ts, last_item = deduped[-1]
+                if ts == last_ts and item == last_item:
+                    continue
+
+            deduped.append((ts, item))
+
+        clean_histories[user_id] = deduped
 
     return clean_histories
 
-def apply_custom_core_filter(user_sequences, min_user_len=5, min_item_count=1):
-    print(f"Executing iterative filter (Users >= {min_user_len}, Items >= {min_item_count})...")
-    iteration = 0
-    while True:
-        iteration += 1
-        start_user_count = len(user_sequences)
+def apply_custom_core_filter(user_sequences,
+                             min_user_len=5,
+                             min_item_count=5):
 
-        item_counts = defaultdict(int)
-        for seq in user_sequences.values():
-            for _, item_id in seq:
-                item_counts[item_id] += 1
+    print(f"Applying single-pass filter (Users >= {min_user_len}, Items >= {min_item_count})...")
 
-        filtered_sequences = {}
-        for user_id, seq in user_sequences.items():
-            clean_seq = [(ts, item_id) for ts, item_id in seq if item_counts[item_id] >= min_item_count]
-            if len(clean_seq) >= min_user_len:
-                filtered_sequences[user_id] = clean_seq
+    # Count item frequencies on the raw dataset
+    item_counts = defaultdict(int)
 
-        end_user_count = len(filtered_sequences)
-        print(f"    Iteration {iteration}: Active Users {start_user_count} -> {end_user_count}")
+    for seq in user_sequences.values():
+        for _, item in seq:
+            item_counts[item] += 1
 
-        if start_user_count == end_user_count:
-            print("Dataset successfully stabilized.")
-            break
+    filtered_sequences = {}
+
+    for user, seq in user_sequences.items():
+
+        new_seq = [
+            (ts, item)
+            for ts, item in seq
+            if item_counts[item] >= min_item_count
+        ]
+
+        if len(new_seq) >= min_user_len:
+            filtered_sequences[user] = new_seq
+
+    print(f"Users remaining: {len(filtered_sequences):,}")
+
+    return filtered_sequences
+
+def print_dataset_statistics(user_sequences, domain_name):
+    total_users = len(user_sequences)
+    unique_items = set()
+    seq_lengths = []
+    
+    for seq in user_sequences.values():
+        seq_lengths.append(len(seq))
+        for _, item_id in seq:
+            unique_items.add(item_id)
             
-        user_sequences = filtered_sequences
-
-    return user_sequences
+    total_items = len(unique_items)
+    total_interactions = sum(seq_lengths)
+    
+    if total_users == 0 or total_items == 0:
+        print(f"\n[Warning] Dataset {domain_name} is completely empty after filtering.")
+        return
+        
+    avg_seq_len = total_interactions / total_users
+    median_seq_len = statistics.median(seq_lengths)
+    max_seq_len = max(seq_lengths)
+    min_seq_len = min(seq_lengths)
+    
+    sparsity = 1.0 - (total_interactions / (total_users * total_items))
+    avg_item_actions = total_interactions / total_items
+    
+    print("\n" + "="*40)
+    print(f"{domain_name} Dataset Summary (After 5-Core)")
+    print("="*40)
+    print(f"Users:                  {total_users:,}")
+    print(f"Items:                  {total_items:,}")
+    print(f"Interactions:           {total_interactions:,}")
+    print(f"Avg sequence length:    {avg_seq_len:.2f}")
+    print(f"Median sequence length: {median_seq_len}")
+    print(f"Min sequence length:    {min_seq_len}")
+    print(f"Max sequence length:    {max_seq_len}")
+    print(f"Dataset sparsity:       {sparsity:.4%}")
+    print(f"Avg actions/item:       {avg_item_actions:.2f}")
+    print("="*40 + "\n")
 
 if __name__ == "__main__":
     print("Starting Local RecBole Data Export...")
@@ -108,7 +159,11 @@ if __name__ == "__main__":
         try:
             print(f" -> Processing domain: {domain}")
             raw_histories = load_clean_and_sort_interactions(interaction_file)
-            filtered_histories = apply_custom_core_filter(raw_histories, min_user_len=5, min_item_count=1)
+            
+            # EXECUTING TRUE 5-CORE FILTER HERE
+            filtered_histories = apply_custom_core_filter(raw_histories, min_user_len=5, min_item_count=5)
+            
+            print_dataset_statistics(filtered_histories, domain)
 
             output_inter = os.path.join(domain_dir, f"{domain}.inter")
             total_rows = 0
