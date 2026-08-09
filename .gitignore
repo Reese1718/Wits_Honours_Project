@@ -220,5 +220,4 @@ __marimo__/
 # Dataset and Output Files
 *.jsonl
 *.inter
-*.txt
 datasets/

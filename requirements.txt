@@ -1,0 +1,7 @@
+recbole>=1.2.0
+torch>=2.0.0
+pandas>=2.0.0
+numpy<2.0.0
+ray
+kmeans_pytorch
+pyarrow>=17.0.0
