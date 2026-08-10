@@ -24,6 +24,8 @@ cd "$SLURM_SUBMIT_DIR"
 source /etc/profile.d/lmod.sh
 module load anaconda/anaconda-2025-12-2
 
+export APPTAINER_BINDPATH="/datasets:/datasets"
+
 echo "Python version:"
 conda run -n wits_env python --version
 
