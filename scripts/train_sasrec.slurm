@@ -29,7 +29,7 @@ conda run -n wits_env python --version
 
 echo "Starting SASRec..."
 
-conda run -n wits_env python pipeline/train_sasrec.py
+conda run -n wits_env python pipeline/training/train_sasrec.py
 
 echo "=================================================="
 echo "SASRec JOB COMPLETE"
