@@ -1,4 +1,6 @@
 import os
+import sys
+import torch
 
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
@@ -14,10 +16,15 @@ from recbole.utils import init_seed, init_logger
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_DIR = os.path.dirname(SCRIPT_DIR)
 
+if len(sys.argv) != 2:
+    raise ValueError(
+        "Usage: python train_sasrec.py <config_file>"
+    )
+
 CONFIG_FILE = os.path.join(
     PIPELINE_DIR,
     "configs",
-    "sasrec.yaml"
+    sys.argv[1]
 )
 
 
@@ -31,7 +38,7 @@ def train_sasrec():
     print("SASRec Training")
     print("=" * 70)
 
-    print(f"\nUsing configuration:")
+    print("\nUsing configuration:")
     print(CONFIG_FILE)
 
     # ------------------------------------------------------
@@ -128,6 +135,7 @@ def train_sasrec():
     print("=" * 70)
 
     print(f"Best validation score: {best_valid_score}")
+
     print("Validation results:")
     print(best_valid_result)
 
@@ -139,11 +147,31 @@ def train_sasrec():
     print("FINAL TEST EVALUATION")
     print("=" * 70)
 
-    test_result = trainer.evaluate(
-        test_data,
-        load_best_model=True,
-        show_progress=True
-    )
+    print("\nLoading best checkpoint for final evaluation...")
+
+    # PyTorch's default weights_only behaviour causes
+    # RecBole's saved checkpoint to fail during loading.
+    #
+    # This checkpoint was created by RecBole during the
+    # training run, so it is a trusted checkpoint.
+    original_torch_load = torch.load
+
+    def trusted_torch_load(*args, **kwargs):
+        kwargs["weights_only"] = False
+        return original_torch_load(*args, **kwargs)
+
+    torch.load = trusted_torch_load
+
+    try:
+        test_result = trainer.evaluate(
+            test_data,
+            load_best_model=True,
+            show_progress=True
+        )
+
+    finally:
+        # Restore the original torch.load function
+        torch.load = original_torch_load
 
     print("\nTest results:")
     print(test_result)
