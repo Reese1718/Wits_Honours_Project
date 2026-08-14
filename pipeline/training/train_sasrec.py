@@ -13,7 +13,7 @@ from recbole.utils import init_seed, init_logger
 # Project Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SSCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_DIR = os.path.dirname(SCRIPT_DIR)
 
 if len(sys.argv) != 2:
