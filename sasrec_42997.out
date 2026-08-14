@@ -1,0 +1,22 @@
+==================================================
+SASRec TRAINING JOB
+==================================================
+Date: Thu Aug 13 02:11:29 PM UTC 2026
+Job ID: 42997
+Node: mscluster108
+Working Directory: /home-mscluster/dnaidoo3/Wits_Honours_Project
+==================================================
+
+=== SASRec CONFIGURATION ===
+Config file: sasrec_movies.yaml
+
+=== ANACONDA CHECK ===
+
+=== PYTHON VERSION ===
+
+=== STARTING SASRec ===
+Configuration: sasrec_movies.yaml
+
+==================================================
+SASRec JOB COMPLETE
+==================================================

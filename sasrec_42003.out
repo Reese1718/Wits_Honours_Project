@@ -1,0 +1,24 @@
+==================================================
+SASRec TRAINING JOB
+==================================================
+Date: Mon Aug 10 12:58:35 PM UTC 2026
+Job ID: 42003
+Node: mscluster110
+Working Directory: /home-mscluster/dnaidoo3/Wits_Honours_Project
+==================================================
+Python version:
+Python 3.10.20
+
+Starting SASRec...
+======================================================================
+SASRec Training
+======================================================================
+
+Using configuration:
+/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/configs/sasrec.yaml
+
+Creating dataset...
+
+==================================================
+SASRec JOB COMPLETE
+==================================================

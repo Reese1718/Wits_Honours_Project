@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/training/train_sasrec.py", line 165, in <module>
+    train_sasrec()
+  File "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/training/train_sasrec.py", line 41, in train_sasrec
+    config = Config(
+  File "/home-mscluster/dnaidoo3/.conda/envs/wits_env/lib/python3.10/site-packages/recbole/config/configurator.py", line 93, in __init__
+    self._set_default_parameters()
+  File "/home-mscluster/dnaidoo3/.conda/envs/wits_env/lib/python3.10/site-packages/recbole/config/configurator.py", line 349, in _set_default_parameters
+    raise ValueError(
+ValueError: train_neg_sample_args [{'distribution': 'uniform', 'sample_num': 1, 'alpha': 1.0, 'dynamic': False, 'candidate_num': 0}] should be None when the loss_type is CE.
+
+ERROR conda.cli.main_run:execute(127): `conda run python pipeline/training/train_sasrec.py` failed. (See above for error)
