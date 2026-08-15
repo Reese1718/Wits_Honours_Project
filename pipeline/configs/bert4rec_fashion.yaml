@@ -1,5 +1,5 @@
 # ==========================================================
-# SASRec Configuration
+# BERT4Rec Configuration - Fashion
 # ==========================================================
 
 # ----------------------------------------------------------
@@ -7,8 +7,7 @@
 # ----------------------------------------------------------
 
 dataset: Fashion
-
-data_path: /datasets/dnaidoo3/
+data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
 ITEM_ID_FIELD: item_id
@@ -17,6 +16,7 @@ TIME_FIELD: timestamp
 load_col:
   inter: [user_id, item_id, timestamp]
 
+
 # ----------------------------------------------------------
 # Sequential Recommendation
 # ----------------------------------------------------------
@@ -24,26 +24,45 @@ load_col:
 ITEM_LIST_LENGTH_FIELD: item_length
 LIST_SUFFIX: _list
 
-# Maximum number of historical items used by SASRec
+# Maximum number of historical items used by BERT4Rec
 MAX_ITEM_LIST_LENGTH: 50
 
+
 # ----------------------------------------------------------
-# Model
+# Model - BERT4Rec
 # ----------------------------------------------------------
 
-embedding_size: 64
-
+# Item embedding / Transformer hidden dimension
 hidden_size: 64
 
-num_layers: 2
+# Feed-forward layer dimension
+inner_size: 256
 
-num_heads: 2
+# Number of Transformer encoder layers
+n_layers: 2
 
-dropout_prob: 0.2
+# Number of attention heads
+n_heads: 2
 
+# Dropout
 hidden_dropout_prob: 0.2
-
 attn_dropout_prob: 0.2
+
+# Activation function
+hidden_act: gelu
+
+# Layer normalization
+layer_norm_eps: 1e-12
+
+# Weight initialization
+initializer_range: 0.02
+
+# Probability of masking an item during training
+mask_ratio: 0.2
+
+# Cross-entropy objective
+loss_type: CE
+
 
 # ----------------------------------------------------------
 # Training
@@ -59,11 +78,9 @@ stopping_step: 10
 
 eval_step: 1
 
-# Explicitly use Cross Entropy loss.
-# CE loss does not use negative sampling.
-loss_type: CE
-
+# CE does not require negative sampling
 train_neg_sample_args: null
+
 
 # ----------------------------------------------------------
 # Reproducibility
@@ -72,6 +89,7 @@ train_neg_sample_args: null
 seed: 42
 
 reproducibility: True
+
 
 # ----------------------------------------------------------
 # Evaluation
@@ -95,6 +113,7 @@ topk: 10
 valid_metric: NDCG@10
 
 metric_decimal_place: 4
+
 
 # ----------------------------------------------------------
 # Hardware
