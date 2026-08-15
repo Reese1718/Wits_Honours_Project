@@ -1,12 +1,103 @@
 import os
 import sys
+import random
 import torch
 
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
+from recbole.data.transform import MaskItemSequence
+from recbole.data.interaction import Interaction
 from recbole.model.sequential_recommender.bert4rec import BERT4Rec
 from recbole.trainer import Trainer
 from recbole.utils import init_seed, init_logger
+
+
+# ==========================================================
+# Patch: guarantee >=1 masked position per sequence
+# ==========================================================
+# Stock RecBole's MaskItemSequence masks each item independently with
+# probability `mask_ratio`. On short sequences (common after 5-core
+# filtering + leave-two-out splitting), it's common for a sequence -
+# or an entire small batch - to randomly get ZERO masked items. That
+# makes `torch.sum(targets)` zero in BERT4Rec.calculate_loss (CE
+# branch), producing a bare 0/0 -> NaN loss. This patch forces the
+# last real item to be masked whenever no item got randomly selected,
+# matching what the (unused-by-default) `_append_mask_last` fallback
+# already does elsewhere in the same file.
+
+def _patched_mask_call(self, dataset, interaction):
+    item_seq = interaction[self.ITEM_SEQ]
+    device = item_seq.device
+    batch_size = item_seq.size(0)
+    n_items = dataset.num(self.ITEM_ID)
+    sequence_instances = item_seq.cpu().numpy().tolist()
+
+    masked_item_sequence = []
+    pos_items = []
+    neg_items = []
+    masked_index = []
+
+    if random.random() < self.ft_ratio:
+        interaction = self._append_mask_last(interaction, n_items, device)
+    else:
+        for instance in sequence_instances:
+            masked_sequence = instance.copy()
+            pos_item = []
+            neg_item = []
+            index_ids = []
+            valid_len = 0
+
+            for index_id, item in enumerate(instance):
+                if item == 0:
+                    break
+                valid_len += 1
+                prob = random.random()
+                if prob < self.mask_ratio:
+                    pos_item.append(item)
+                    neg_item.append(self._neg_sample(instance, n_items))
+                    masked_sequence[index_id] = n_items
+                    index_ids.append(index_id)
+
+            # --- FIX: guarantee >=1 masked position per non-empty sequence ---
+            if len(index_ids) == 0 and valid_len > 0:
+                force_idx = valid_len - 1  # mask the last real item
+                pos_item.append(instance[force_idx])
+                neg_item.append(self._neg_sample(instance, n_items))
+                masked_sequence[force_idx] = n_items
+                index_ids.append(force_idx)
+            # -------------------------------------------------------------
+
+            masked_item_sequence.append(masked_sequence)
+            pos_items.append(self._padding_sequence(pos_item, self.mask_item_length))
+            neg_items.append(self._padding_sequence(neg_item, self.mask_item_length))
+            masked_index.append(
+                self._padding_sequence(index_ids, self.mask_item_length)
+            )
+
+        masked_item_sequence = torch.tensor(
+            masked_item_sequence, dtype=torch.long, device=device
+        ).view(batch_size, -1)
+        pos_items = torch.tensor(pos_items, dtype=torch.long, device=device).view(
+            batch_size, -1
+        )
+        neg_items = torch.tensor(neg_items, dtype=torch.long, device=device).view(
+            batch_size, -1
+        )
+        masked_index = torch.tensor(
+            masked_index, dtype=torch.long, device=device
+        ).view(batch_size, -1)
+        new_dict = {
+            self.MASK_ITEM_SEQ: masked_item_sequence,
+            self.POS_ITEMS: pos_items,
+            self.NEG_ITEMS: neg_items,
+            self.MASK_INDEX: masked_index,
+        }
+        interaction.update(Interaction(new_dict))
+    return interaction
+
+
+# Apply the patch globally - must happen before create_dataset()/data_preparation()
+MaskItemSequence.__call__ = _patched_mask_call
 
 
 # ==========================================================
@@ -285,41 +376,43 @@ def train_bert4rec():
     # Clear gradients before actual training
     model.zero_grad()
 
-
     # ------------------------------------------------------
-    # Debug hook: catch and inspect the first NaN/Inf batch
+    # Safety net: guard against any future NaN/Inf batch
     # ------------------------------------------------------
+    # With the MaskItemSequence patch above, zero-masked batches should
+    # no longer occur. This wraps calculate_loss so that IF a NaN/Inf
+    # ever slips through for some other reason, that single batch is
+    # skipped (zero loss, no backward/update) with a warning printed,
+    # instead of the whole run crashing.
 
     original_calculate_loss = model.calculate_loss
+    nan_batch_count = {"n": 0}
 
-    def debug_calculate_loss(interaction):
+    def guarded_calculate_loss(interaction):
         loss = original_calculate_loss(interaction)
 
         if torch.isnan(loss).any() or torch.isinf(loss).any():
+            nan_batch_count["n"] += 1
             item_seq = interaction[model.ITEM_SEQ]
             item_len = interaction[model.ITEM_SEQ_LEN]
 
             print("\n" + "!" * 70)
-            print("NaN/Inf loss detected — dumping batch diagnostics")
+            print(f"NaN/Inf loss detected (occurrence #{nan_batch_count['n']}) "
+                  "— skipping this batch")
             print("!" * 70)
             print("Batch size:", item_seq.size(0))
             print("Seq length  min/max/mean:",
-                item_len.min().item(), item_len.max().item(),
-                item_len.float().mean().item())
-            print("Rows with length 0:", (item_len == 0).sum().item())
-            print("Rows with length 1:", (item_len == 1).sum().item())
+                  item_len.min().item(), item_len.max().item(),
+                  item_len.float().mean().item())
             print("Max item id in batch:", item_seq.max().item())
-            print("Mask token id:", model.mask_token)
-            print("Item embedding size:", model.item_embedding.num_embeddings)
-            print("Any item id == mask_token already in raw seq?:",
-                (item_seq == model.mask_token).any().item())
-            print("Loss value:", loss.item())
 
-            raise ValueError("Stopping at first bad batch for inspection")
+            # Return a zero loss with grad so the trainer's backward()/
+            # step() calls are harmless no-ops for this batch.
+            return (loss * 0.0).nan_to_num(0.0).requires_grad_(True)
 
         return loss
 
-    model.calculate_loss = debug_calculate_loss
+    model.calculate_loss = guarded_calculate_loss
 
     # ------------------------------------------------------
     # Create trainer
@@ -344,6 +437,14 @@ def train_bert4rec():
         saved=True,
         show_progress=True
     )
+
+    if nan_batch_count["n"] > 0:
+        print(
+            f"\nNote: {nan_batch_count['n']} batch(es) were skipped due to "
+            "NaN/Inf loss during training. If this count is unexpectedly "
+            "high, investigate further — it should be rare to zero now "
+            "that the masking patch is applied."
+        )
 
     # ------------------------------------------------------
     # Best validation results
