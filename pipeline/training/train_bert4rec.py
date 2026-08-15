@@ -285,6 +285,42 @@ def train_bert4rec():
     # Clear gradients before actual training
     model.zero_grad()
 
+
+    # ------------------------------------------------------
+    # Debug hook: catch and inspect the first NaN/Inf batch
+    # ------------------------------------------------------
+
+    original_calculate_loss = model.calculate_loss
+
+    def debug_calculate_loss(interaction):
+        loss = original_calculate_loss(interaction)
+
+        if torch.isnan(loss).any() or torch.isinf(loss).any():
+            item_seq = interaction[model.ITEM_SEQ]
+            item_len = interaction[model.ITEM_SEQ_LEN]
+
+            print("\n" + "!" * 70)
+            print("NaN/Inf loss detected — dumping batch diagnostics")
+            print("!" * 70)
+            print("Batch size:", item_seq.size(0))
+            print("Seq length  min/max/mean:",
+                item_len.min().item(), item_len.max().item(),
+                item_len.float().mean().item())
+            print("Rows with length 0:", (item_len == 0).sum().item())
+            print("Rows with length 1:", (item_len == 1).sum().item())
+            print("Max item id in batch:", item_seq.max().item())
+            print("Mask token id:", model.mask_token)
+            print("Item embedding size:", model.item_embedding.num_embeddings)
+            print("Any item id == mask_token already in raw seq?:",
+                (item_seq == model.mask_token).any().item())
+            print("Loss value:", loss.item())
+
+            raise ValueError("Stopping at first bad batch for inspection")
+
+        return loss
+
+    model.calculate_loss = debug_calculate_loss
+
     # ------------------------------------------------------
     # Create trainer
     # ------------------------------------------------------
