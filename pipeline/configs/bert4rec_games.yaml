@@ -6,7 +6,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Games
+dataset: Video_Games
 
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
