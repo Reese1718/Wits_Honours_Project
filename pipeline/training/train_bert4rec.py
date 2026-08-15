@@ -51,6 +51,16 @@ def train_bert4rec():
     )
 
     # ------------------------------------------------------
+    # Check initial model parameters
+    # ------------------------------------------------------
+
+    print("\nChecking initial model parameters...")
+
+    for name, param in model.named_parameters():
+        if torch.isnan(param).any() or torch.isinf(param).any():
+            print(f"BAD INITIAL PARAMETER: {name}")
+
+    # ------------------------------------------------------
     # Print important configuration
     # ------------------------------------------------------
 
@@ -173,6 +183,47 @@ def train_bert4rec():
     print(f"Trainable parameters:  {trainable_parameters:,}")
     print(f"Model device:          {next(model.parameters()).device}")
     print("-" * 70)
+
+
+    # ------------------------------------------------------
+    # Test one BERT4Rec training batch
+    # ------------------------------------------------------
+
+    print("\nTesting one training batch...")
+
+    model.train()
+
+    batch = next(iter(train_data))
+    batch = batch.to(config["device"])
+
+    loss = model.calculate_loss(batch.interaction)
+
+    print("Initial batch loss:", loss.item())
+    print("Loss is NaN:", torch.isnan(loss).item())
+    print("Loss is Inf:", torch.isinf(loss).item())
+
+    loss.backward()
+
+    print("\nGradient check:")
+
+    bad_gradients = False
+
+    for name, param in model.named_parameters():
+
+        if param.grad is not None:
+
+            if torch.isnan(param.grad).any():
+                print(f"NaN gradient: {name}")
+                bad_gradients = True
+
+            elif torch.isinf(param.grad).any():
+                print(f"Inf gradient: {name}")
+                bad_gradients = True
+
+    if not bad_gradients:
+        print("All gradients are finite.")
+
+    model.zero_grad()
 
     # ------------------------------------------------------
     # Create trainer
