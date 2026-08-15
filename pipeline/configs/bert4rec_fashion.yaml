@@ -70,6 +70,12 @@ eval_step: 1
 
 train_neg_sample_args: null
 
+# Disable mixed-precision training.
+# This is being done to prevent the NaN loss
+# encountered during BERT4Rec training.
+enable_amp: False
+enable_scaler: False
+
 
 # ----------------------------------------------------------
 # Reproducibility
