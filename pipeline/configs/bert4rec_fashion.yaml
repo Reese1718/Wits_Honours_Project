@@ -62,13 +62,19 @@ epochs: 30
 
 train_batch_size: 256
 
-learning_rate: 0.00001
+# FIX 1: Restored learning rate to standard baseline
+learning_rate: 0.001
 
 stopping_step: 10
 
 eval_step: 1
 
 train_neg_sample_args: null
+
+# FIX 2: RecBole expects a dictionary for gradient clipping arguments
+clip_grad_norm:
+  max_norm: 1.0
+  norm_type: 2
 
 # Disable mixed-precision training.
 # This is being done to prevent the NaN loss
