@@ -51,16 +51,6 @@ def train_bert4rec():
     )
 
     # ------------------------------------------------------
-    # Check initial model parameters
-    # ------------------------------------------------------
-
-    print("\nChecking initial model parameters...")
-
-    for name, param in model.named_parameters():
-        if torch.isnan(param).any() or torch.isinf(param).any():
-            print(f"BAD INITIAL PARAMETER: {name}")
-
-    # ------------------------------------------------------
     # Print important configuration
     # ------------------------------------------------------
 
@@ -111,18 +101,29 @@ def train_bert4rec():
 
     print("\nHardware:")
     print("-" * 70)
+
     print("PyTorch version:", torch.__version__)
     print("CUDA available:", torch.cuda.is_available())
 
     if torch.cuda.is_available():
-        print("GPU:", torch.cuda.get_device_name(0))
+
+        print(
+            "GPU:",
+            torch.cuda.get_device_name(0)
+        )
+
         print(
             "GPU memory:",
-            round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 2),
+            round(
+                torch.cuda.get_device_properties(0).total_memory
+                / 1024**3,
+                2
+            ),
             "GB"
         )
 
     print("RecBole device:", config["device"])
+
     print("-" * 70)
 
     # ------------------------------------------------------
@@ -179,11 +180,41 @@ def train_bert4rec():
 
     print("\nModel Information:")
     print("-" * 70)
-    print(f"Total parameters:      {total_parameters:,}")
-    print(f"Trainable parameters:  {trainable_parameters:,}")
-    print(f"Model device:          {next(model.parameters()).device}")
+
+    print(
+        f"Total parameters:      {total_parameters:,}"
+    )
+
+    print(
+        f"Trainable parameters:  {trainable_parameters:,}"
+    )
+
+    print(
+        f"Model device:          {next(model.parameters()).device}"
+    )
+
     print("-" * 70)
 
+    # ------------------------------------------------------
+    # Check initial model parameters
+    # ------------------------------------------------------
+
+    print("\nChecking initial model parameters...")
+
+    bad_parameters = False
+
+    for name, param in model.named_parameters():
+
+        if torch.isnan(param).any():
+            print(f"NaN initial parameter: {name}")
+            bad_parameters = True
+
+        elif torch.isinf(param).any():
+            print(f"Inf initial parameter: {name}")
+            bad_parameters = True
+
+    if not bad_parameters:
+        print("All initial model parameters are finite.")
 
     # ------------------------------------------------------
     # Test one BERT4Rec training batch
@@ -194,13 +225,33 @@ def train_bert4rec():
     model.train()
 
     batch = next(iter(train_data))
+
+    # Move interaction data to GPU
     batch = batch.to(config["device"])
 
-    loss = model.calculate_loss(batch.interaction)
+    # Calculate loss
+    loss = model.calculate_loss(
+        batch.interaction
+    )
 
-    print("Initial batch loss:", loss.item())
-    print("Loss is NaN:", torch.isnan(loss).item())
-    print("Loss is Inf:", torch.isinf(loss).item())
+    print(
+        "Initial batch loss:",
+        loss.item()
+    )
+
+    print(
+        "Loss is NaN:",
+        torch.isnan(loss).item()
+    )
+
+    print(
+        "Loss is Inf:",
+        torch.isinf(loss).item()
+    )
+
+    # ------------------------------------------------------
+    # Check gradients
+    # ------------------------------------------------------
 
     loss.backward()
 
@@ -213,16 +264,25 @@ def train_bert4rec():
         if param.grad is not None:
 
             if torch.isnan(param.grad).any():
-                print(f"NaN gradient: {name}")
+
+                print(
+                    f"NaN gradient: {name}"
+                )
+
                 bad_gradients = True
 
             elif torch.isinf(param.grad).any():
-                print(f"Inf gradient: {name}")
+
+                print(
+                    f"Inf gradient: {name}"
+                )
+
                 bad_gradients = True
 
     if not bad_gradients:
         print("All gradients are finite.")
 
+    # Clear gradients before actual training
     model.zero_grad()
 
     # ------------------------------------------------------
@@ -257,7 +317,9 @@ def train_bert4rec():
     print("BEST VALIDATION RESULT")
     print("=" * 70)
 
-    print(f"Best validation score: {best_valid_score}")
+    print(
+        f"Best validation score: {best_valid_score}"
+    )
 
     print("Validation results:")
     print(best_valid_result)
@@ -270,16 +332,24 @@ def train_bert4rec():
     print("FINAL TEST EVALUATION")
     print("=" * 70)
 
-    print("\nLoading best checkpoint for final evaluation...")
+    print(
+        "\nLoading best checkpoint for final evaluation..."
+    )
 
-    # RecBole's saved checkpoint needs weights_only=False
-    # with newer PyTorch versions.
+    # ------------------------------------------------------
+    # Handle PyTorch checkpoint loading
+    # ------------------------------------------------------
 
     original_torch_load = torch.load
 
     def trusted_torch_load(*args, **kwargs):
+
         kwargs["weights_only"] = False
-        return original_torch_load(*args, **kwargs)
+
+        return original_torch_load(
+            *args,
+            **kwargs
+        )
 
     torch.load = trusted_torch_load
 
@@ -295,6 +365,10 @@ def train_bert4rec():
 
         # Restore original torch.load
         torch.load = original_torch_load
+
+    # ------------------------------------------------------
+    # Print test results
+    # ------------------------------------------------------
 
     print("\nTest results:")
     print(test_result)
