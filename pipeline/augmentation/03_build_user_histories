@@ -1,0 +1,296 @@
+import json
+import os
+from collections import defaultdict
+
+
+# ==========================================================
+# Project Paths
+# ==========================================================
+
+SCRIPT_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(SCRIPT_DIR)
+)
+
+INTERACTION_FILE = os.path.join(
+    PROJECT_DIR,
+    "datasets",
+    "Fashion",
+    "processed",
+    "Fashion_filtered.jsonl"
+)
+
+CATALOGUE_FILE = os.path.join(
+    PROJECT_DIR,
+    "datasets",
+    "Fashion",
+    "exports",
+    "Fashion_llm_catalogue.json"
+)
+
+OUTPUT_FILE = os.path.join(
+    PROJECT_DIR,
+    "datasets",
+    "Fashion",
+    "exports",
+    "Fashion_user_histories.json"
+)
+
+
+# ==========================================================
+# Main Function
+# ==========================================================
+
+def build_user_histories():
+
+    print("=" * 70)
+    print("BUILDING FASHION USER HISTORIES")
+    print("=" * 70)
+
+    # ======================================================
+    # Load product catalogue
+    # ======================================================
+
+    print("\nLoading LLM product catalogue:")
+    print(CATALOGUE_FILE)
+
+    with open(
+        CATALOGUE_FILE,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        catalogue_list = json.load(file)
+
+    # ------------------------------------------------------
+    # Convert catalogue into ASIN lookup
+    # ------------------------------------------------------
+
+    catalogue = {
+        product["asin"]: product
+        for product in catalogue_list
+        if product.get("asin")
+    }
+
+    print(
+        f"Products in catalogue: {len(catalogue):,}"
+    )
+
+    # ======================================================
+    # Load filtered interactions
+    # ======================================================
+
+    print("\nLoading filtered interaction dataset:")
+    print(INTERACTION_FILE)
+
+    user_histories = defaultdict(list)
+
+    total_interactions = 0
+    missing_metadata = 0
+
+    with open(
+        INTERACTION_FILE,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        for line in file:
+
+            line = line.strip()
+
+            if not line:
+                continue
+
+            interaction = json.loads(line)
+
+            user_id = interaction.get("user_id")
+            item_id = interaction.get("item_id")
+            timestamp = interaction.get("timestamp")
+
+            if not user_id or not item_id:
+                continue
+
+            total_interactions += 1
+
+            # --------------------------------------------------
+            # Find product metadata using ASIN
+            # --------------------------------------------------
+
+            product = catalogue.get(item_id)
+
+            if product is None:
+
+                missing_metadata += 1
+                continue
+
+            # --------------------------------------------------
+            # Add interaction to user's history
+            # --------------------------------------------------
+
+            user_histories[user_id].append(
+                {
+                    "asin": item_id,
+                    "timestamp": timestamp,
+                    "title": product.get("title", ""),
+                    "store": product.get("store", ""),
+                    "main_category": product.get(
+                        "main_category",
+                        ""
+                    ),
+                    "categories": product.get(
+                        "categories",
+                        []
+                    ),
+                    "department": product.get(
+                        "department",
+                        ""
+                    ),
+                    "manufacturer": product.get(
+                        "manufacturer",
+                        ""
+                    ),
+                    "description": product.get(
+                        "description",
+                        ""
+                    ),
+                    "features": product.get(
+                        "features",
+                        []
+                    )
+                }
+            )
+
+    # ======================================================
+    # Sort histories chronologically
+    # ======================================================
+
+    for user_id in user_histories:
+
+        user_histories[user_id].sort(
+            key=lambda x: (
+                x["timestamp"]
+                if x["timestamp"] is not None
+                else 0
+            )
+        )
+
+    # ======================================================
+    # Convert to regular dictionary
+    # ======================================================
+
+    user_histories = dict(
+        user_histories
+    )
+
+    # ======================================================
+    # Save output
+    # ======================================================
+
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            user_histories,
+            file,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    # ======================================================
+    # Statistics
+    # ======================================================
+
+    total_users = len(
+        user_histories
+    )
+
+    history_lengths = [
+        len(history)
+        for history in user_histories.values()
+    ]
+
+    print("\n" + "=" * 70)
+    print("USER HISTORY DATASET CREATED")
+    print("=" * 70)
+
+    print(
+        f"Users:                 {total_users:,}"
+    )
+
+    print(
+        f"Interactions scanned:  {total_interactions:,}"
+    )
+
+    print(
+        f"Users with histories:   {total_users:,}"
+    )
+
+    print(
+        f"Missing metadata:       {missing_metadata:,}"
+    )
+
+    if history_lengths:
+
+        print(
+            f"Average history length: "
+            f"{sum(history_lengths) / len(history_lengths):.2f}"
+        )
+
+        print(
+            f"Shortest history:       "
+            f"{min(history_lengths)}"
+        )
+
+        print(
+            f"Longest history:        "
+            f"{max(history_lengths)}"
+        )
+
+    print(
+        f"\nOutput file:\n{OUTPUT_FILE}"
+    )
+
+    # ======================================================
+    # Example user
+    # ======================================================
+
+    if user_histories:
+
+        example_user = next(
+            iter(user_histories)
+        )
+
+        print("\nExample user:")
+        print("-" * 70)
+
+        print(
+            "User ID:",
+            example_user
+        )
+
+        print(
+            json.dumps(
+                user_histories[example_user],
+                indent=2,
+                ensure_ascii=False
+            )
+        )
+
+    print("\n" + "=" * 70)
+    print("COMPLETE")
+    print("=" * 70)
+
+
+# ==========================================================
+# Entry Point
+# ==========================================================
+
+if __name__ == "__main__":
+
+    build_user_histories()
