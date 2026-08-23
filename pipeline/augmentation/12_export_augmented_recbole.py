@@ -1,1 +1,552 @@
 
+"""
+12_export_augmented_recbole.py
+
+Exports the augmented Fashion user histories into RecBole .inter format.
+
+Input:
+    Fashion_augmented_user_histories.json
+
+Output:
+    Fashion_augmented.inter
+
+RecBole fields:
+    user_id:token
+    item_id:token
+    timestamp:float
+
+IMPORTANT:
+    The timestamp field in the augmented export is an ordering value,
+    not the original Amazon timestamp.
+
+    It is derived from sequence_position so that:
+
+        real train
+        -> LLM synthetic items
+        -> real validation
+        -> real test
+
+    remains the exact chronological order seen by RecBole.
+
+This allows the same RecBole configuration:
+
+    group_by: user
+    order: TO
+    split:
+        LS: valid_and_test
+
+to leave the final real validation and real test interactions held out.
+"""
+
+import json
+import os
+
+
+# ==========================================================
+# Project Paths
+# ==========================================================
+
+SCRIPT_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(SCRIPT_DIR)
+)
+
+EXPORT_DIR = os.path.join(
+    PROJECT_DIR,
+    "datasets",
+    "Fashion",
+    "exports"
+)
+
+INPUT_FILE = os.path.join(
+    EXPORT_DIR,
+    "Fashion_augmented_user_histories.json"
+)
+
+OUTPUT_FILE = os.path.join(
+    EXPORT_DIR,
+    "Fashion_augmented.inter"
+)
+
+
+# ==========================================================
+# Helpers
+# ==========================================================
+
+def clean_text(value):
+
+    if value is None:
+        return ""
+
+    return str(value).strip()
+
+
+def load_json(path):
+
+    print("Loading:")
+    print(path)
+
+    if not os.path.exists(path):
+
+        raise FileNotFoundError(
+            f"\nRequired file not found:\n{path}"
+        )
+
+    with open(
+        path,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        return json.load(file)
+
+
+# ==========================================================
+# Export
+# ==========================================================
+
+def export_augmented_recbole():
+
+    print("=" * 70)
+    print(
+        "EXPORTING AUGMENTED FASHION DATA TO RECBOLE"
+    )
+    print("=" * 70)
+
+    # ======================================================
+    # Load Histories
+    # ======================================================
+
+    print()
+
+    user_histories = load_json(
+        INPUT_FILE
+    )
+
+    print(
+        f"Users loaded: "
+        f"{len(user_histories):,}"
+    )
+
+    # ======================================================
+    # Validation Counters
+    # ======================================================
+
+    total_interactions = 0
+
+    real_train_count = 0
+    synthetic_count = 0
+    validation_count = 0
+    test_count = 0
+
+    invalid_users = 0
+    invalid_positions = 0
+
+    rows = []
+
+    # ======================================================
+    # Process Users
+    # ======================================================
+
+    for user_id, sequence in (
+        user_histories.items()
+    ):
+
+        user_id = clean_text(
+            user_id
+        )
+
+        if not user_id:
+
+            invalid_users += 1
+            continue
+
+        if not sequence:
+
+            invalid_users += 1
+            continue
+
+        # --------------------------------------------------
+        # Sort strictly by explicit sequence_position
+        # --------------------------------------------------
+
+        sequence = sorted(
+            sequence,
+            key=lambda item: (
+                item.get(
+                    "sequence_position",
+                    0
+                )
+            )
+        )
+
+        # --------------------------------------------------
+        # Validate sequence positions
+        # --------------------------------------------------
+
+        expected_positions = list(
+            range(
+                1,
+                len(sequence) + 1
+            )
+        )
+
+        actual_positions = [
+            item.get(
+                "sequence_position"
+            )
+            for item in sequence
+        ]
+
+        if (
+            actual_positions
+            != expected_positions
+        ):
+
+            invalid_positions += 1
+
+            raise RuntimeError(
+                "\nInvalid sequence positions found.\n"
+                f"User: {user_id}\n"
+                f"Expected: {expected_positions}\n"
+                f"Actual:   {actual_positions}"
+            )
+
+        # --------------------------------------------------
+        # Last two positions must be validation and test
+        # --------------------------------------------------
+
+        if len(sequence) < 3:
+
+            raise RuntimeError(
+                f"User {user_id} has fewer than "
+                "3 interactions."
+            )
+
+        if (
+            sequence[-2].get(
+                "interaction_source"
+            )
+            != "real_validation"
+        ):
+
+            raise RuntimeError(
+                "\nValidation boundary corrupted.\n"
+                f"User: {user_id}"
+            )
+
+        if (
+            sequence[-1].get(
+                "interaction_source"
+            )
+            != "real_test"
+        ):
+
+            raise RuntimeError(
+                "\nTest boundary corrupted.\n"
+                f"User: {user_id}"
+            )
+
+        # --------------------------------------------------
+        # Export every interaction
+        # --------------------------------------------------
+
+        for item in sequence:
+
+            item_id = clean_text(
+                item.get("asin")
+            )
+
+            sequence_position = (
+                item.get(
+                    "sequence_position"
+                )
+            )
+
+            source = clean_text(
+                item.get(
+                    "interaction_source"
+                )
+            )
+
+            if not item_id:
+
+                raise RuntimeError(
+                    "\nMissing ASIN/item_id.\n"
+                    f"User: {user_id}\n"
+                    f"Position: {sequence_position}"
+                )
+
+            if sequence_position is None:
+
+                raise RuntimeError(
+                    "\nMissing sequence_position.\n"
+                    f"User: {user_id}\n"
+                    f"ASIN: {item_id}"
+                )
+
+            # ------------------------------------------------
+            # Count provenance
+            # ------------------------------------------------
+
+            if source == "real_train":
+
+                real_train_count += 1
+
+            elif source == "llm_synthetic":
+
+                synthetic_count += 1
+
+            elif source == "real_validation":
+
+                validation_count += 1
+
+            elif source == "real_test":
+
+                test_count += 1
+
+            else:
+
+                raise RuntimeError(
+                    "\nUnknown interaction source.\n"
+                    f"User: {user_id}\n"
+                    f"Source: {source}"
+                )
+
+            # ------------------------------------------------
+            # RecBole row
+            #
+            # sequence_position becomes the temporal/order field
+            # ------------------------------------------------
+
+            rows.append(
+                (
+                    user_id,
+                    item_id,
+                    float(
+                        sequence_position
+                    )
+                )
+            )
+
+            total_interactions += 1
+
+    # ======================================================
+    # Global Checks
+    # ======================================================
+
+    print()
+    print("=" * 70)
+    print(
+        "VALIDATING RECBOLE EXPORT"
+    )
+    print("=" * 70)
+
+    if invalid_users > 0:
+
+        raise RuntimeError(
+            f"{invalid_users} invalid users detected."
+        )
+
+    if invalid_positions > 0:
+
+        raise RuntimeError(
+            f"{invalid_positions} users had "
+            "invalid sequence positions."
+        )
+
+    expected_users = len(
+        user_histories
+    )
+
+    if (
+        validation_count
+        != expected_users
+    ):
+
+        raise RuntimeError(
+            "\nValidation count mismatch.\n"
+            f"Expected: {expected_users:,}\n"
+            f"Actual:   {validation_count:,}"
+        )
+
+    if (
+        test_count
+        != expected_users
+    ):
+
+        raise RuntimeError(
+            "\nTest count mismatch.\n"
+            f"Expected: {expected_users:,}\n"
+            f"Actual:   {test_count:,}"
+        )
+
+    if (
+        synthetic_count
+        != expected_users * 3
+    ):
+
+        raise RuntimeError(
+            "\nSynthetic interaction count mismatch.\n"
+            f"Expected: {expected_users * 3:,}\n"
+            f"Actual:   {synthetic_count:,}"
+        )
+
+    expected_total = (
+        real_train_count
+        + synthetic_count
+        + validation_count
+        + test_count
+    )
+
+    if (
+        total_interactions
+        != expected_total
+    ):
+
+        raise RuntimeError(
+            "Interaction-count reconciliation failed."
+        )
+
+    print(
+        "Export validation passed."
+    )
+
+    print(
+        "Every user has exactly one "
+        "validation interaction."
+    )
+
+    print(
+        "Every user has exactly one "
+        "test interaction."
+    )
+
+    print(
+        "Every user has exactly three "
+        "LLM synthetic interactions."
+    )
+
+    # ======================================================
+    # Write RecBole .inter File
+    # ======================================================
+
+    print()
+    print(
+        "Writing RecBole interaction file:"
+    )
+
+    print(
+        OUTPUT_FILE
+    )
+
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        # RecBole header
+        file.write(
+            "user_id:token\t"
+            "item_id:token\t"
+            "timestamp:float\n"
+        )
+
+        for (
+            user_id,
+            item_id,
+            timestamp
+        ) in rows:
+
+            file.write(
+                f"{user_id}\t"
+                f"{item_id}\t"
+                f"{timestamp}\n"
+            )
+
+    # ======================================================
+    # Summary
+    # ======================================================
+
+    print()
+    print("=" * 70)
+    print(
+        "AUGMENTED RECBOLE EXPORT COMPLETE"
+    )
+    print("=" * 70)
+
+    print(
+        f"Users:                  "
+        f"{expected_users:,}"
+    )
+
+    print(
+        f"Real train interactions:"
+        f" {real_train_count:,}"
+    )
+
+    print(
+        f"Synthetic interactions: "
+        f"{synthetic_count:,}"
+    )
+
+    print(
+        f"Validation interactions:"
+        f" {validation_count:,}"
+    )
+
+    print(
+        f"Test interactions:      "
+        f"{test_count:,}"
+    )
+
+    print(
+        f"Total interactions:     "
+        f"{total_interactions:,}"
+    )
+
+    print()
+    print(
+        f"Output file:\n{OUTPUT_FILE}"
+    )
+
+    # ======================================================
+    # Example Rows
+    # ======================================================
+
+    print()
+    print("=" * 70)
+    print(
+        "FIRST 10 EXPORTED ROWS"
+    )
+    print("=" * 70)
+
+    for row in rows[:10]:
+
+        print(
+            row
+        )
+
+    print()
+    print("=" * 70)
+    print("COMPLETE")
+    print("=" * 70)
+
+    print()
+    print(
+        "The augmented Fashion dataset is now "
+        "ready for RecBole training."
+    )
+
+
+# ==========================================================
+# Entry Point
+# ==========================================================
+
+if __name__ == "__main__":
+
+    export_augmented_recbole()
