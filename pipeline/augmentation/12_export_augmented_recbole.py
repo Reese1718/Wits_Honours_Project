@@ -1,75 +1,72 @@
-
 """
 12_export_augmented_recbole.py
 
-Exports the augmented Fashion user histories into RecBole .inter format.
 
-Input:
-    Fashion_augmented_user_histories.json
+    python pipeline/augmentation/12_export_augmented_recbole.py --dataset fashion
 
-Output:
-    Fashion_augmented.inter
+    python pipeline/augmentation/12_export_augmented_recbole.py --dataset video_games
 
-RecBole fields:
-    user_id:token
-    item_id:token
-    timestamp:float
-
-IMPORTANT:
-    The timestamp field in the augmented export is an ordering value,
-    not the original Amazon timestamp.
-
-    It is derived from sequence_position so that:
-
-        real train
-        -> LLM synthetic items
-        -> real validation
-        -> real test
-
-    remains the exact chronological order seen by RecBole.
-
-This allows the same RecBole configuration:
-
-    group_by: user
-    order: TO
-    split:
-        LS: valid_and_test
-
-to leave the final real validation and real test interactions held out.
+    python pipeline/augmentation/12_export_augmented_recbole.py --dataset movies_tv
 """
 
 import json
 import os
+import argparse
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-EXPORT_DIR = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
-INPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_augmented_user_histories.json"
-)
 
-OUTPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_augmented.inter"
-)
+# ==========================================================
+# Configuration
+# ==========================================================
+
+EXPECTED_AUGMENTATIONS = 3
+
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Export augmented interaction histories "
+            "to RecBole .inter format."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -110,10 +107,55 @@ def load_json(path):
 
 def export_augmented_recbole():
 
-    print("=" * 70)
-    print(
-        "EXPORTING AUGMENTED FASHION DATA TO RECBOLE"
+    args = parse_args()
+
+    dataset_key = args.dataset
+    config = DATASETS[dataset_key]
+
+    dataset_folder = config["folder"]
+    dataset_prefix = config["prefix"]
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(__file__)
     )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(script_dir)
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    input_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_augmented_user_histories.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_augmented.inter"
+    )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print("=" * 70)
+
+    print(
+        f"EXPORTING AUGMENTED "
+        f"{dataset_folder.upper()} "
+        f"DATA TO RECBOLE"
+    )
+
     print("=" * 70)
 
     # ======================================================
@@ -123,7 +165,7 @@ def export_augmented_recbole():
     print()
 
     user_histories = load_json(
-        INPUT_FILE
+        input_file
     )
 
     print(
@@ -340,9 +382,11 @@ def export_augmented_recbole():
 
     print()
     print("=" * 70)
+
     print(
         "VALIDATING RECBOLE EXPORT"
     )
+
     print("=" * 70)
 
     if invalid_users > 0:
@@ -384,14 +428,19 @@ def export_augmented_recbole():
             f"Actual:   {test_count:,}"
         )
 
+    expected_synthetic = (
+        expected_users
+        * EXPECTED_AUGMENTATIONS
+    )
+
     if (
         synthetic_count
-        != expected_users * 3
+        != expected_synthetic
     ):
 
         raise RuntimeError(
             "\nSynthetic interaction count mismatch.\n"
-            f"Expected: {expected_users * 3:,}\n"
+            f"Expected: {expected_synthetic:,}\n"
             f"Actual:   {synthetic_count:,}"
         )
 
@@ -426,7 +475,8 @@ def export_augmented_recbole():
     )
 
     print(
-        "Every user has exactly three "
+        "Every user has exactly "
+        f"{EXPECTED_AUGMENTATIONS} "
         "LLM synthetic interactions."
     )
 
@@ -440,16 +490,15 @@ def export_augmented_recbole():
     )
 
     print(
-        OUTPUT_FILE
+        output_file
     )
 
     with open(
-        OUTPUT_FILE,
+        output_file,
         "w",
         encoding="utf-8"
     ) as file:
 
-        # RecBole header
         file.write(
             "user_id:token\t"
             "item_id:token\t"
@@ -474,10 +523,17 @@ def export_augmented_recbole():
 
     print()
     print("=" * 70)
+
     print(
         "AUGMENTED RECBOLE EXPORT COMPLETE"
     )
+
     print("=" * 70)
+
+    print(
+        f"Dataset:                "
+        f"{dataset_folder}"
+    )
 
     print(
         f"Users:                  "
@@ -511,7 +567,8 @@ def export_augmented_recbole():
 
     print()
     print(
-        f"Output file:\n{OUTPUT_FILE}"
+        f"Output file:\n"
+        f"{output_file}"
     )
 
     # ======================================================
@@ -520,9 +577,11 @@ def export_augmented_recbole():
 
     print()
     print("=" * 70)
+
     print(
         "FIRST 10 EXPORTED ROWS"
     )
+
     print("=" * 70)
 
     for row in rows[:10]:
@@ -533,13 +592,17 @@ def export_augmented_recbole():
 
     print()
     print("=" * 70)
-    print("COMPLETE")
+
+    print(
+        "COMPLETE"
+    )
+
     print("=" * 70)
 
     print()
     print(
-        "The augmented Fashion dataset is now "
-        "ready for RecBole training."
+        f"The augmented {dataset_folder} dataset "
+        "is now ready for RecBole training."
     )
 
 

@@ -1,86 +1,52 @@
-
 """
 11_build_augmented_interactions.py
 
-Builds the augmented Fashion user histories.
-
-Inputs:
-    Fashion_user_histories.json
-    Fashion_llm_augmentations.json
-    Fashion_llm_catalogue.json
-
-For each user:
-
-    Original chronological sequence:
-        A -> B -> C -> D -> E -> F
-
-    RecBole leave-one-out split:
-        Train      = A -> B -> C -> D
-        Validation = E
-        Test       = F
-
-    LLM augmentations:
-        X -> Y -> Z
-
-    New sequence:
-        A -> B -> C -> D -> X -> Y -> Z -> E -> F
-
-Validation and test interactions are NEVER modified.
 
 IMPORTANT:
-    This script does NOT invent timestamps for the synthetic items.
+    This script does NOT invent timestamps for synthetic items.
 
     It stores the augmented sequence order explicitly.
     Step 12 will convert the sequence into RecBole format using
-    deterministic sequential timestamps/order values so that
+    deterministic sequence-position order values so that
     validation and test remain the final two interactions.
 
 Output:
-    Fashion_augmented_user_histories.json
+    {prefix}_augmented_user_histories.json
+
+
+
+    python pipeline/augmentation/11_build_augmented_interactions.py --dataset fashion
+
+    python pipeline/augmentation/11_build_augmented_interactions.py --dataset video_games
+
+    python pipeline/augmentation/11_build_augmented_interactions.py --dataset movies_tv
 """
 
 import json
 import os
+import argparse
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-EXPORT_DIR = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports"
-)
-
-USER_HISTORIES_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_user_histories.json"
-)
-
-AUGMENTATION_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_augmentations.json"
-)
-
-CATALOGUE_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_catalogue.json"
-)
-
-OUTPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_augmented_user_histories.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
 
 # ==========================================================
@@ -88,6 +54,32 @@ OUTPUT_FILE = os.path.join(
 # ==========================================================
 
 EXPECTED_AUGMENTATIONS = 3
+
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Build augmented user interaction histories "
+            "for an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -134,10 +126,65 @@ def load_json(path):
 
 def build_augmented_histories():
 
-    print("=" * 70)
-    print(
-        "BUILDING FASHION AUGMENTED USER HISTORIES"
+    args = parse_args()
+
+    dataset_key = args.dataset
+    config = DATASETS[dataset_key]
+
+    dataset_folder = config["folder"]
+    dataset_prefix = config["prefix"]
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(__file__)
     )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(script_dir)
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    user_histories_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_user_histories.json"
+    )
+
+    augmentation_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_augmentations.json"
+    )
+
+    catalogue_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_catalogue.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_augmented_user_histories.json"
+    )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print("=" * 70)
+
+    print(
+        f"BUILDING "
+        f"{dataset_folder.upper()} "
+        f"AUGMENTED USER HISTORIES"
+    )
+
     print("=" * 70)
 
     # ======================================================
@@ -145,8 +192,9 @@ def build_augmented_histories():
     # ======================================================
 
     print()
+
     original_histories = load_json(
-        USER_HISTORIES_FILE
+        user_histories_file
     )
 
     print(
@@ -159,8 +207,9 @@ def build_augmented_histories():
     # ======================================================
 
     print()
+
     augmentation_records = load_json(
-        AUGMENTATION_FILE
+        augmentation_file
     )
 
     print(
@@ -173,8 +222,9 @@ def build_augmented_histories():
     # ======================================================
 
     print()
+
     catalogue = load_json(
-        CATALOGUE_FILE
+        catalogue_file
     )
 
     print(
@@ -190,7 +240,9 @@ def build_augmented_histories():
         clean_text(
             record.get("user_id")
         ): record
+
         for record in augmentation_records
+
         if clean_text(
             record.get("user_id")
         )
@@ -200,7 +252,9 @@ def build_augmented_histories():
         clean_text(
             product.get("asin")
         ): product
+
         for product in catalogue
+
         if clean_text(
             product.get("asin")
         )
@@ -260,10 +314,11 @@ def build_augmented_histories():
             full_length
         )
 
-        # We need:
-        # at least one train item
-        # + validation
-        # + test
+        # Need:
+        #   >= 1 train
+        #   1 validation
+        #   1 test
+
         if full_length < 3:
 
             users_invalid_history += 1
@@ -343,7 +398,9 @@ def build_augmented_histories():
             clean_text(
                 item.get("asin")
             )
+
             for item in train_history
+
             if clean_text(
                 item.get("asin")
             )
@@ -386,16 +443,19 @@ def build_augmented_histories():
 
                 raise RuntimeError(
                     f"\nSynthetic ASIN {asin} "
-                    "is missing from the Fashion catalogue."
+                    f"is missing from the "
+                    f"{dataset_folder} catalogue."
                 )
 
             synthetic_items.append(
                 {
-                    "asin": asin,
+                    "asin": (
+                        asin
+                    ),
 
                     # No real timestamp exists.
-                    # Step 12 will assign sequence-based
-                    # timestamps/order values.
+                    # Step 12 assigns deterministic
+                    # sequence-based order values.
                     "timestamp": None,
 
                     "title": clean_text(
@@ -444,17 +504,18 @@ def build_augmented_histories():
                         []
                     ),
 
-                    # Explicit provenance
-                    "interaction_source": "llm_synthetic",
+                    "interaction_source": (
+                        "llm_synthetic"
+                    ),
 
                     "synthetic_position": (
                         synthetic_position
-                    )
+                    ),
                 }
             )
 
         # --------------------------------------------------
-        # Mark original interactions
+        # Mark Original Interactions
         # --------------------------------------------------
 
         marked_train = []
@@ -490,7 +551,7 @@ def build_augmented_histories():
         ] = "real_test"
 
         # --------------------------------------------------
-        # Construct augmented sequence
+        # Construct Augmented Sequence
         # --------------------------------------------------
 
         augmented_sequence = (
@@ -498,7 +559,7 @@ def build_augmented_histories():
             + synthetic_items
             + [
                 marked_validation,
-                marked_test
+                marked_test,
             ]
         )
 
@@ -568,7 +629,7 @@ def build_augmented_histories():
             )
 
         # --------------------------------------------------
-        # Exactly three synthetic interactions
+        # Exactly EXPECTED_AUGMENTATIONS synthetic items
         # --------------------------------------------------
 
         synthetic_count = sum(
@@ -587,7 +648,7 @@ def build_augmented_histories():
             raise RuntimeError(
                 f"User {user_id} has "
                 f"{synthetic_count} synthetic items "
-                "instead of "
+                f"instead of "
                 f"{EXPECTED_AUGMENTATIONS}."
             )
 
@@ -611,7 +672,7 @@ def build_augmented_histories():
             )
 
         # --------------------------------------------------
-        # Save user
+        # Save User
         # --------------------------------------------------
 
         augmented_histories[
@@ -634,9 +695,11 @@ def build_augmented_histories():
 
     print()
     print("=" * 70)
+
     print(
         "VALIDATING AUGMENTED HISTORIES"
     )
+
     print("=" * 70)
 
     if not augmented_histories:
@@ -649,7 +712,8 @@ def build_augmented_histories():
         augmented_histories.items()
     ):
 
-        # Last two MUST always be real validation/test
+        # Last two must remain validation/test
+
         if (
             sequence[-2].get(
                 "interaction_source"
@@ -675,11 +739,14 @@ def build_augmented_histories():
             )
 
         # Synthetic items must appear BEFORE validation/test
+
         synthetic_positions = [
             item[
                 "sequence_position"
             ]
+
             for item in sequence
+
             if item.get(
                 "interaction_source"
             ) == "llm_synthetic"
@@ -693,13 +760,40 @@ def build_augmented_histories():
 
         if any(
             position >= validation_position
-            for position
-            in synthetic_positions
+            for position in synthetic_positions
         ):
 
             raise RuntimeError(
                 f"Synthetic interaction appears "
                 f"after validation boundary "
+                f"for user {user_id}"
+            )
+
+        # --------------------------------------------------
+        # Sequence positions must be contiguous
+        # --------------------------------------------------
+
+        actual_positions = [
+            item.get(
+                "sequence_position"
+            )
+            for item in sequence
+        ]
+
+        expected_positions = list(
+            range(
+                1,
+                len(sequence) + 1
+            )
+        )
+
+        if (
+            actual_positions
+            != expected_positions
+        ):
+
+            raise RuntimeError(
+                f"Non-contiguous sequence positions "
                 f"for user {user_id}"
             )
 
@@ -721,6 +815,10 @@ def build_augmented_histories():
         "All test interactions remain last."
     )
 
+    print(
+        "All sequence positions are contiguous."
+    )
+
     # ======================================================
     # Save Output
     # ======================================================
@@ -731,11 +829,11 @@ def build_augmented_histories():
     )
 
     print(
-        OUTPUT_FILE
+        output_file
     )
 
     with open(
-        OUTPUT_FILE,
+        output_file,
         "w",
         encoding="utf-8"
     ) as file:
@@ -753,10 +851,18 @@ def build_augmented_histories():
 
     print()
     print("=" * 70)
+
     print(
-        "FASHION AUGMENTED HISTORIES CREATED"
+        f"{dataset_folder.upper()} "
+        f"AUGMENTED HISTORIES CREATED"
     )
+
     print("=" * 70)
+
+    print(
+        f"Dataset:                     "
+        f"{dataset_folder}"
+    )
 
     print(
         f"Original users:              "
@@ -779,6 +885,7 @@ def build_augmented_histories():
     )
 
     print()
+
     print(
         f"Original interactions:       "
         f"{original_interactions:,}"
@@ -795,6 +902,7 @@ def build_augmented_histories():
     )
 
     print()
+
     print(
         f"Duplicate synthetic sets:    "
         f"{duplicate_synthetic_asins:,}"
@@ -833,22 +941,27 @@ def build_augmented_histories():
 
     print()
     print("=" * 70)
+
     print(
         "EXAMPLE AUGMENTED USER"
     )
+
     print("=" * 70)
 
     print(
-        f"User ID:\n{example_user}"
+        f"User ID:\n"
+        f"{example_user}"
     )
 
     print()
+
     print(
         f"Final sequence length: "
         f"{len(example_sequence)}"
     )
 
     print()
+
     print(
         "Sequence:"
     )
@@ -862,19 +975,29 @@ def build_augmented_histories():
         )
 
     print()
+
     print(
-        f"Output file:\n{OUTPUT_FILE}"
+        f"Output file:\n"
+        f"{output_file}"
     )
 
     print()
     print("=" * 70)
-    print("COMPLETE")
+
+    print(
+        "COMPLETE"
+    )
+
     print("=" * 70)
 
     print()
-    print("Next step:")
     print(
-        "12_export_augmented_recbole.py"
+        "Next step:"
+    )
+
+    print(
+        "12_export_augmented_recbole.py "
+        f"--dataset {dataset_key}"
     )
 
 

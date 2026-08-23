@@ -1,62 +1,65 @@
 """
 07_build_train_only_llm_inputs.py
 
-Creates leakage-safe LLM inputs for Fashion.
 
-Uses the existing chronological user histories produced by:
-    03_build_user_histories.py
+    python pipeline/augmentation/07_build_train_only_llm_inputs.py --dataset fashion
 
-Reproduces the same leave-one-out split used by RecBole:
+    python pipeline/augmentation/07_build_train_only_llm_inputs.py --dataset video_games
 
-    eval_args:
-        group_by: user
-        order: TO
-        split:
-            LS: valid_and_test
-
-For each user:
-
-    train      = history[:-2]
-    validation = history[-2]
-    test       = history[-1]
-
-Only the TRAIN portion is written to the LLM input file.
-
-Output:
-    Fashion_llm_train_inputs.json
+    python pipeline/augmentation/07_build_train_only_llm_inputs.py --dataset movies_tv
 """
 
 import json
 import os
+import argparse
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-USER_HISTORIES_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_user_histories.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
-OUTPUT_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_train_inputs.json"
-)
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Build train-only leakage-safe LLM inputs "
+            "for an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -74,15 +77,21 @@ def clean_text(value):
     return str(value).strip()
 
 
-def compact_features(features, max_features=3):
+def compact_features(
+    features,
+    max_features=3
+):
     """
     Keep only a small number of product features.
 
     This matches the representation used by:
-        04_create_fashion_llm_inputs.py
+        04_create_llm_inputs.py
     """
 
-    if not isinstance(features, list):
+    if not isinstance(
+        features,
+        list
+    ):
         return []
 
     cleaned = [
@@ -91,49 +100,83 @@ def compact_features(features, max_features=3):
         if clean_text(feature)
     ]
 
-    return cleaned[:max_features]
+    return cleaned[
+        :max_features
+    ]
 
 
-def build_product_representation(product):
+def build_product_representation(
+    product
+):
     """
     Create the same compact product representation used
-    by 04_create_fashion_llm_inputs.py.
+    by 04_create_llm_inputs.py.
     """
 
     result = {
         "asin": clean_text(
-            product.get("asin")
+            product.get(
+                "asin"
+            )
         ),
+
         "title": clean_text(
-            product.get("title")
+            product.get(
+                "title"
+            )
         ),
+
         "store": clean_text(
-            product.get("store")
+            product.get(
+                "store"
+            )
         ),
+
         "department": clean_text(
-            product.get("department")
+            product.get(
+                "department"
+            )
         ),
+
         "manufacturer": clean_text(
-            product.get("manufacturer")
-        )
+            product.get(
+                "manufacturer"
+            )
+        ),
     }
 
     features = compact_features(
-        product.get("features", [])
+        product.get(
+            "features",
+            []
+        )
     )
 
     if features:
-        result["features"] = features
+
+        result[
+            "features"
+        ] = features
 
     description = clean_text(
-        product.get("description")
+        product.get(
+            "description"
+        )
     )
 
     useful_fields = [
-        result.get("title"),
-        result.get("store"),
-        result.get("department"),
-        result.get("manufacturer")
+        result.get(
+            "title"
+        ),
+        result.get(
+            "store"
+        ),
+        result.get(
+            "department"
+        ),
+        result.get(
+            "manufacturer"
+        ),
     ]
 
     useful_count = sum(
@@ -142,11 +185,14 @@ def build_product_representation(product):
         if value
     )
 
-    if description and useful_count <= 2:
+    if (
+        description
+        and useful_count <= 2
+    ):
 
-        result["description"] = (
-            description[:500]
-        )
+        result[
+            "description"
+        ] = description[:500]
 
     return result
 
@@ -157,44 +203,126 @@ def build_product_representation(product):
 
 def build_train_only_inputs():
 
-    print("=" * 70)
-    print(
-        "BUILDING TRAIN-ONLY FASHION LLM INPUTS"
+    args = parse_args()
+
+    dataset_key = (
+        args.dataset
     )
-    print("=" * 70)
 
-    # ------------------------------------------------------
-    # Load existing user histories
-    # ------------------------------------------------------
+    config = (
+        DATASETS[
+            dataset_key
+        ]
+    )
 
-    print("\nLoading user histories:")
-    print(USER_HISTORIES_FILE)
+    dataset_folder = (
+        config[
+            "folder"
+        ]
+    )
+
+    dataset_prefix = (
+        config[
+            "prefix"
+        ]
+    )
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(
+            __file__
+        )
+    )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(
+            script_dir
+        )
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    user_histories_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_user_histories.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_inputs.json"
+    )
+
+    # ======================================================
+    # Validate Input
+    # ======================================================
 
     if not os.path.exists(
-        USER_HISTORIES_FILE
+        user_histories_file
     ):
 
         raise FileNotFoundError(
             "\nUser history file not found:\n"
-            f"{USER_HISTORIES_FILE}\n\n"
-            "Run 03_build_user_histories.py first."
+            f"{user_histories_file}\n\n"
+            "Run 03_build_user_histories.py "
+            f"--dataset {dataset_key} first."
         )
 
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"BUILDING TRAIN-ONLY "
+        f"{dataset_folder.upper()} "
+        f"LLM INPUTS"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    # ======================================================
+    # Load Existing User Histories
+    # ======================================================
+
+    print(
+        "\nLoading user histories:"
+    )
+
+    print(
+        user_histories_file
+    )
+
     with open(
-        USER_HISTORIES_FILE,
+        user_histories_file,
         "r",
         encoding="utf-8"
     ) as file:
 
-        user_histories = json.load(file)
+        user_histories = json.load(
+            file
+        )
 
     print(
-        f"Users loaded: {len(user_histories):,}"
+        f"Users loaded: "
+        f"{len(user_histories):,}"
     )
 
-    # ------------------------------------------------------
-    # Create train-only histories
-    # ------------------------------------------------------
+    # ======================================================
+    # Create Train-Only Histories
+    # ======================================================
 
     llm_inputs = []
 
@@ -212,45 +340,52 @@ def build_train_only_inputs():
     minimum_train_length = None
     maximum_train_length = 0
 
-    # Used for a structural validation at the end
     expected_train_sequences = {}
 
-    for user_id, history in (
-        user_histories.items()
-    ):
+    for (
+        user_id,
+        history
+    ) in user_histories.items():
 
         if not history:
+
             skipped_users += 1
             continue
 
         # --------------------------------------------------
         # Sort again defensively.
-        #
-        # File 03 already sorts chronologically, but doing it
-        # again ensures this script is independently safe.
+        # File 03 should already have sorted these.
         # --------------------------------------------------
 
         history = sorted(
             history,
             key=lambda item: (
-                item.get("timestamp")
-                if item.get("timestamp")
-                is not None
+                item.get(
+                    "timestamp"
+                )
+                if item.get(
+                    "timestamp"
+                ) is not None
                 else 0
             )
         )
 
-        full_length = len(history)
+        full_length = len(
+            history
+        )
 
         total_full_interactions += (
             full_length
         )
 
         if minimum_full_length is None:
+
             minimum_full_length = (
                 full_length
             )
+
         else:
+
             minimum_full_length = min(
                 minimum_full_length,
                 full_length
@@ -262,10 +397,8 @@ def build_train_only_inputs():
         )
 
         # --------------------------------------------------
-        # RecBole leave-one-out requires:
-        #
-        # at least:
-        #   1 train
+        # Need:
+        #   >= 1 train
         #   1 validation
         #   1 test
         # --------------------------------------------------
@@ -276,20 +409,26 @@ def build_train_only_inputs():
             continue
 
         # --------------------------------------------------
-        # EXACT RECBOLE SPLIT
+        # Exact RecBole Leave-One-Out Split
         # --------------------------------------------------
 
-        train_history = history[:-2]
+        train_history = (
+            history[:-2]
+        )
 
-        validation_item = history[-2]
+        validation_item = (
+            history[-2]
+        )
 
-        test_item = history[-1]
+        test_item = (
+            history[-1]
+        )
 
         validation_interactions += 1
         test_interactions += 1
 
         # --------------------------------------------------
-        # Compact ONLY the training history
+        # Compact ONLY Training History
         # --------------------------------------------------
 
         compact_history = []
@@ -307,6 +446,7 @@ def build_train_only_inputs():
                     "asin"
                 ]
             ):
+
                 continue
 
             compact_history.append(
@@ -345,31 +485,38 @@ def build_train_only_inputs():
         )
 
         # --------------------------------------------------
-        # Save expected ASIN sequence for validation.
+        # Expected ASIN sequence for validation
         # --------------------------------------------------
 
         expected_train_sequences[
-            user_id
+            str(user_id)
         ] = [
             clean_text(
-                product.get("asin")
+                product.get(
+                    "asin"
+                )
             )
-            for product in train_history
+            for product
+            in train_history
             if clean_text(
-                product.get("asin")
+                product.get(
+                    "asin"
+                )
             )
         ]
 
         # --------------------------------------------------
-        # FINAL LLM RECORD
+        # Final LLM Record
         #
-        # Notice:
-        # validation_item and test_item are NOT written.
+        # validation_item and test_item are deliberately
+        # NOT written to the output.
         # --------------------------------------------------
 
         llm_inputs.append(
             {
-                "user_id": user_id,
+                "user_id": str(
+                    user_id
+                ),
 
                 "history_length": (
                     train_length
@@ -377,7 +524,7 @@ def build_train_only_inputs():
 
                 "history": (
                     compact_history
-                )
+                ),
             }
         )
 
@@ -386,19 +533,36 @@ def build_train_only_inputs():
     # ======================================================
 
     print()
-    print("=" * 70)
-    print("VALIDATING TRAIN-ONLY HISTORIES")
-    print("=" * 70)
+    print(
+        "=" * 70
+    )
+
+    print(
+        "VALIDATING TRAIN-ONLY HISTORIES"
+    )
+
+    print(
+        "=" * 70
+    )
 
     validation_errors = 0
 
     for record in llm_inputs:
 
-        user_id = record["user_id"]
+        user_id = (
+            record[
+                "user_id"
+            ]
+        )
 
         actual_sequence = [
-            item["asin"]
-            for item in record["history"]
+            item[
+                "asin"
+            ]
+            for item
+            in record[
+                "history"
+            ]
         ]
 
         expected_sequence = (
@@ -420,7 +584,10 @@ def build_train_only_inputs():
                 f"{user_id}"
             )
 
-            if validation_errors >= 10:
+            if (
+                validation_errors
+                >= 10
+            ):
 
                 print(
                     "Stopping error display "
@@ -456,11 +623,16 @@ def build_train_only_inputs():
     # ======================================================
 
     print()
-    print("Saving output:")
-    print(OUTPUT_FILE)
+    print(
+        "Saving output:"
+    )
+
+    print(
+        output_file
+    )
 
     with open(
-        OUTPUT_FILE,
+        output_file,
         "w",
         encoding="utf-8"
     ) as file:
@@ -477,11 +649,22 @@ def build_train_only_inputs():
     # ======================================================
 
     print()
-    print("=" * 70)
+    print(
+        "=" * 70
+    )
+
     print(
         "TRAIN-ONLY LLM INPUT DATASET CREATED"
     )
-    print("=" * 70)
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"Dataset:                    "
+        f"{dataset_folder}"
+    )
 
     print(
         f"Users written:              "
@@ -537,7 +720,9 @@ def build_train_only_inputs():
 
         average_train_length = (
             total_train_interactions
-            / len(llm_inputs)
+            / len(
+                llm_inputs
+            )
         )
 
         print(
@@ -551,10 +736,14 @@ def build_train_only_inputs():
 
     if llm_inputs:
 
-        example = llm_inputs[0]
+        example = (
+            llm_inputs[0]
+        )
 
         example_user = (
-            example["user_id"]
+            example[
+                "user_id"
+            ]
         )
 
         full_history = sorted(
@@ -562,17 +751,28 @@ def build_train_only_inputs():
                 example_user
             ],
             key=lambda item: (
-                item.get("timestamp")
-                if item.get("timestamp")
-                is not None
+                item.get(
+                    "timestamp"
+                )
+                if item.get(
+                    "timestamp"
+                ) is not None
                 else 0
             )
         )
 
         print()
-        print("=" * 70)
-        print("EXAMPLE USER SPLIT")
-        print("=" * 70)
+        print(
+            "=" * 70
+        )
+
+        print(
+            "EXAMPLE USER SPLIT"
+        )
+
+        print(
+            "=" * 70
+        )
 
         print(
             f"User ID:\n"
@@ -591,7 +791,9 @@ def build_train_only_inputs():
         )
 
         print()
-        print("Train ASINs:")
+        print(
+            "Train ASINs:"
+        )
 
         for product in (
             full_history[:-2]
@@ -599,7 +801,9 @@ def build_train_only_inputs():
 
             print(
                 "  ",
-                product.get("asin")
+                product.get(
+                    "asin"
+                )
             )
 
         print()
@@ -609,7 +813,13 @@ def build_train_only_inputs():
 
         print(
             "  ",
-            full_history[-2].get(
+            validation_item.get(
+                "asin"
+            )
+            if False
+            else full_history[
+                -2
+            ].get(
                 "asin"
             )
         )
@@ -621,7 +831,9 @@ def build_train_only_inputs():
 
         print(
             "  ",
-            full_history[-1].get(
+            full_history[
+                -1
+            ].get(
                 "asin"
             )
         )
@@ -641,13 +853,22 @@ def build_train_only_inputs():
 
     print()
     print(
-        f"Output file:\n{OUTPUT_FILE}"
+        f"Output file:\n"
+        f"{output_file}"
     )
 
     print()
-    print("=" * 70)
-    print("COMPLETE")
-    print("=" * 70)
+    print(
+        "=" * 70
+    )
+
+    print(
+        "COMPLETE"
+    )
+
+    print(
+        "=" * 70
+    )
 
     print()
     print(
@@ -655,7 +876,8 @@ def build_train_only_inputs():
     )
 
     print(
-        "08_build_train_only_candidates.py"
+        "08_build_train_only_candidates.py "
+        f"--dataset {dataset_key}"
     )
 
 

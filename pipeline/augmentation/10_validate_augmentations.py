@@ -1,75 +1,40 @@
 """
-10_validate_fashion_augmentations.py
+10_validate_augmentations.py
 
-Validates the raw Fashion LLM augmentation output created by:
+Validates raw LLM augmentation output for one of the supported datasets.
 
-    09_generate_fashion_augmentations.py
+    python pipeline/augmentation/10_validate_augmentations.py --dataset fashion
 
-Checks that every accepted augmentation:
+    python pipeline/augmentation/10_validate_augmentations.py --dataset video_games
 
-    1. Belongs to a valid user.
-    2. Contains exactly 3 selected items.
-    3. Uses valid candidate IDs.
-    4. Maps each candidate ID to the correct candidate ASIN.
-    5. Uses ASINs that exist in the Fashion LLM catalogue.
-    6. Does not contain duplicate candidate IDs.
-    7. Does not contain duplicate ASINs.
-    8. Does not recommend an item already in the user's TRAIN history.
-
-Produces:
-
-    Fashion_llm_augmentations.json
-
-This clean file is the one that should be used by step 11.
+    python pipeline/augmentation/10_validate_augmentations.py --dataset movies_tv
 """
 
 import json
 import os
+import argparse
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-EXPORT_DIR = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports"
-)
-
-RAW_AUGMENTATION_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_augmentations_raw.json"
-)
-
-TRAIN_INPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_train_inputs.json"
-)
-
-TRAIN_CANDIDATE_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_train_candidates.json"
-)
-
-CATALOGUE_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_catalogue.json"
-)
-
-OUTPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_augmentations.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
 
 # ==========================================================
@@ -77,6 +42,32 @@ OUTPUT_FILE = os.path.join(
 # ==========================================================
 
 EXPECTED_AUGMENTATIONS = 3
+
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate LLM-generated augmentation records "
+            "for an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -117,10 +108,75 @@ def load_json(path):
 
 def validate_augmentations():
 
-    print("=" * 70)
-    print(
-        "VALIDATING FASHION LLM AUGMENTATIONS"
+    args = parse_args()
+
+    dataset_key = args.dataset
+    config = DATASETS[dataset_key]
+
+    dataset_folder = config["folder"]
+    dataset_prefix = config["prefix"]
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(__file__)
     )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(script_dir)
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    raw_augmentation_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_augmentations_raw.json"
+    )
+
+    train_input_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_inputs.json"
+    )
+
+    train_candidate_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_candidates.json"
+    )
+
+    catalogue_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_catalogue.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_augmentations.json"
+    )
+
+    invalid_output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_augmentations_invalid.json"
+    )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print("=" * 70)
+
+    print(
+        f"VALIDATING "
+        f"{dataset_folder.upper()} "
+        f"LLM AUGMENTATIONS"
+    )
+
     print("=" * 70)
 
     # ======================================================
@@ -128,8 +184,9 @@ def validate_augmentations():
     # ======================================================
 
     print()
+
     raw_records = load_json(
-        RAW_AUGMENTATION_FILE
+        raw_augmentation_file
     )
 
     print(
@@ -138,8 +195,9 @@ def validate_augmentations():
     )
 
     print()
+
     train_inputs = load_json(
-        TRAIN_INPUT_FILE
+        train_input_file
     )
 
     print(
@@ -148,8 +206,9 @@ def validate_augmentations():
     )
 
     print()
+
     candidate_records = load_json(
-        TRAIN_CANDIDATE_FILE
+        train_candidate_file
     )
 
     print(
@@ -158,8 +217,9 @@ def validate_augmentations():
     )
 
     print()
+
     catalogue = load_json(
-        CATALOGUE_FILE
+        catalogue_file
     )
 
     print(
@@ -198,7 +258,6 @@ def validate_augmentations():
     # ======================================================
 
     valid_records = []
-
     invalid_records = []
 
     invalid_status = 0
@@ -270,11 +329,9 @@ def validate_augmentations():
         # Selected candidates
         # --------------------------------------------------
 
-        selected_candidates = (
-            raw_record.get(
-                "selected_candidates",
-                []
-            )
+        selected_candidates = raw_record.get(
+            "selected_candidates",
+            []
         )
 
         if not isinstance(
@@ -353,11 +410,9 @@ def validate_augmentations():
             {}
         )
 
-        train_history = (
-            train_record.get(
-                "history",
-                []
-            )
+        train_history = train_record.get(
+            "history",
+            []
         )
 
         train_asins = {
@@ -434,13 +489,13 @@ def validate_augmentations():
                 )
             )
 
-            # Candidate ID must exist
             candidate = (
                 candidate_id_lookup.get(
                     candidate_id
                 )
             )
 
+            # Candidate ID must exist
             if candidate is None:
 
                 errors.append(
@@ -453,7 +508,9 @@ def validate_augmentations():
                 continue
 
             expected_asin = clean_text(
-                candidate.get("asin")
+                candidate.get(
+                    "asin"
+                )
             )
 
             # Candidate ID -> ASIN mapping
@@ -500,36 +557,47 @@ def validate_augmentations():
                     "candidate_id": (
                         candidate_id
                     ),
-                    "asin": asin,
+
+                    "asin": (
+                        asin
+                    ),
+
                     "title": clean_text(
                         candidate.get(
                             "title"
                         )
                     ),
+
                     "similarity_score": (
                         candidate.get(
                             "similarity_score"
                         )
-                    )
+                    ),
                 }
             )
 
         # --------------------------------------------------
-        # Final record decision
+        # Final Record Decision
         # --------------------------------------------------
 
         if errors:
 
             invalid_records.append(
                 {
-                    "user_id": user_id,
-                    "errors": errors,
+                    "user_id": (
+                        user_id
+                    ),
+
+                    "errors": (
+                        errors
+                    ),
+
                     "raw_model_response": (
                         raw_record.get(
                             "raw_model_response",
                             ""
                         )
-                    )
+                    ),
                 }
             )
 
@@ -542,24 +610,29 @@ def validate_augmentations():
 
             invalid_records.append(
                 {
-                    "user_id": user_id,
+                    "user_id": (
+                        user_id
+                    ),
+
                     "errors": [
                         "Final validated item count "
                         "is not exactly "
                         f"{EXPECTED_AUGMENTATIONS}"
-                    ]
+                    ],
                 }
             )
 
             continue
 
         # --------------------------------------------------
-        # Clean final augmentation
+        # Clean Final Augmentation
         # --------------------------------------------------
 
         valid_records.append(
             {
-                "user_id": user_id,
+                "user_id": (
+                    user_id
+                ),
 
                 "augmented_asins": [
                     item["asin"]
@@ -569,7 +642,7 @@ def validate_augmentations():
 
                 "selected_candidates": (
                     clean_selected_items
-                )
+                ),
             }
         )
 
@@ -579,14 +652,16 @@ def validate_augmentations():
 
     print()
     print("=" * 70)
+
     print(
         "GLOBAL VALIDATION"
     )
+
     print("=" * 70)
 
     # ------------------------------------------------------
     # Duplicate output users
-    # --------------------------------------------------
+    # ------------------------------------------------------
 
     valid_user_ids = [
         record["user_id"]
@@ -595,7 +670,9 @@ def validate_augmentations():
 
     if (
         len(valid_user_ids)
-        != len(set(valid_user_ids))
+        != len(
+            set(valid_user_ids)
+        )
     ):
 
         raise RuntimeError(
@@ -609,7 +686,7 @@ def validate_augmentations():
 
     # ------------------------------------------------------
     # Every valid record has exactly 3 items
-    # --------------------------------------------------
+    # ------------------------------------------------------
 
     for record in valid_records:
 
@@ -624,7 +701,8 @@ def validate_augmentations():
 
             raise RuntimeError(
                 "Validated record does not "
-                "contain exactly 3 ASINs."
+                f"contain exactly "
+                f"{EXPECTED_AUGMENTATIONS} ASINs."
             )
 
     print(
@@ -638,11 +716,16 @@ def validate_augmentations():
     # ======================================================
 
     print()
-    print("Saving validated augmentations:")
-    print(OUTPUT_FILE)
+    print(
+        "Saving validated augmentations:"
+    )
+
+    print(
+        output_file
+    )
 
     with open(
-        OUTPUT_FILE,
+        output_file,
         "w",
         encoding="utf-8"
     ) as file:
@@ -655,18 +738,13 @@ def validate_augmentations():
         )
 
     # ======================================================
-    # Optional invalid report
+    # Save Invalid Report If Needed
     # ======================================================
-
-    INVALID_OUTPUT_FILE = os.path.join(
-        EXPORT_DIR,
-        "Fashion_llm_augmentations_invalid.json"
-    )
 
     if invalid_records:
 
         with open(
-            INVALID_OUTPUT_FILE,
+            invalid_output_file,
             "w",
             encoding="utf-8"
         ) as file:
@@ -684,10 +762,18 @@ def validate_augmentations():
 
     print()
     print("=" * 70)
+
     print(
-        "FASHION AUGMENTATION VALIDATION COMPLETE"
+        f"{dataset_folder.upper()} "
+        f"AUGMENTATION VALIDATION COMPLETE"
     )
+
     print("=" * 70)
+
+    print(
+        f"Dataset:                     "
+        f"{dataset_folder}"
+    )
 
     print(
         f"Raw records:                 "
@@ -705,8 +791,13 @@ def validate_augmentations():
     )
 
     print()
-    print("Failure breakdown")
-    print("-" * 70)
+    print(
+        "Failure breakdown"
+    )
+
+    print(
+        "-" * 70
+    )
 
     print(
         f"Non-success generation:      "
@@ -770,6 +861,7 @@ def validate_augmentations():
         ) * 100
 
         print()
+
         print(
             f"Validated success rate:      "
             f"{success_rate:.2f}%"
@@ -778,15 +870,16 @@ def validate_augmentations():
     print()
     print(
         f"Validated output:\n"
-        f"{OUTPUT_FILE}"
+        f"{output_file}"
     )
 
     if invalid_records:
 
         print()
+
         print(
             f"Invalid-record report:\n"
-            f"{INVALID_OUTPUT_FILE}"
+            f"{invalid_output_file}"
         )
 
     # ======================================================
@@ -797,9 +890,11 @@ def validate_augmentations():
 
         print()
         print("=" * 70)
+
         print(
             "EXAMPLE VALIDATED AUGMENTATION"
         )
+
         print("=" * 70)
 
         print(
@@ -812,13 +907,21 @@ def validate_augmentations():
 
     print()
     print("=" * 70)
-    print("COMPLETE")
+
+    print(
+        "COMPLETE"
+    )
+
     print("=" * 70)
 
     print()
-    print("Next step:")
     print(
-        "11_build_augmented_interactions.py"
+        "Next step:"
+    )
+
+    print(
+        "11_build_augmented_interactions.py "
+        f"--dataset {dataset_key}"
     )
 
 

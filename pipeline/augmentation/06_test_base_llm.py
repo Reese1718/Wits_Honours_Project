@@ -1,9 +1,33 @@
+"""
+06_test_base_llm.py
+
+Tests Qwen2.5-3B-Instruct on a small number of real users
+for one of the supported Amazon datasets.
+
+Supported datasets:
+    fashion
+    video_games
+    movies_tv
+
+Examples:
+
+    python pipeline/augmentation/06_test_base_llm.py --dataset fashion
+
+    python pipeline/augmentation/06_test_base_llm.py --dataset video_games
+
+    python pipeline/augmentation/06_test_base_llm.py --dataset movies_tv
+"""
+
 import json
 import os
 import re
+import argparse
 import torch
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM
+)
 
 
 # ==========================================================
@@ -17,32 +41,61 @@ NUM_RECOMMENDATIONS = 3
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-LLM_INPUT_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_inputs.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
-CANDIDATE_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_candidates.json"
-)
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Test the base Qwen model on "
+            "real users from an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    parser.add_argument(
+        "--num-users",
+        type=int,
+        default=NUM_USERS_TO_TEST,
+        help=(
+            "Number of users to test. "
+            f"Default: {NUM_USERS_TO_TEST}"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -85,20 +138,37 @@ def format_history(history):
             product.get("manufacturer")
         )
 
-        line = f"{index}. {title}"
+        line = (
+            f"{index}. {title}"
+        )
 
         if store:
-            line += f" | Store: {store}"
+
+            line += (
+                f" | Store: {store}"
+            )
 
         if department:
-            line += f" | Department: {department}"
+
+            line += (
+                f" | Department: "
+                f"{department}"
+            )
 
         if manufacturer:
-            line += f" | Manufacturer: {manufacturer}"
 
-        lines.append(line)
+            line += (
+                f" | Manufacturer: "
+                f"{manufacturer}"
+            )
 
-    return "\n".join(lines)
+        lines.append(
+            line
+        )
+
+    return "\n".join(
+        lines
+    )
 
 
 def format_candidates(candidates):
@@ -111,39 +181,66 @@ def format_candidates(candidates):
     for candidate in candidates:
 
         candidate_id = clean_text(
-            candidate.get("candidate_id")
+            candidate.get(
+                "candidate_id"
+            )
         )
 
         title = clean_text(
-            candidate.get("title")
+            candidate.get(
+                "title"
+            )
         )
 
         store = clean_text(
-            candidate.get("store")
+            candidate.get(
+                "store"
+            )
         )
 
         department = clean_text(
-            candidate.get("department")
+            candidate.get(
+                "department"
+            )
         )
 
         manufacturer = clean_text(
-            candidate.get("manufacturer")
+            candidate.get(
+                "manufacturer"
+            )
         )
 
-        line = f"{candidate_id} - {title}"
+        line = (
+            f"{candidate_id} - {title}"
+        )
 
         if store:
-            line += f" | Store: {store}"
+
+            line += (
+                f" | Store: {store}"
+            )
 
         if department:
-            line += f" | Department: {department}"
+
+            line += (
+                f" | Department: "
+                f"{department}"
+            )
 
         if manufacturer:
-            line += f" | Manufacturer: {manufacturer}"
 
-        lines.append(line)
+            line += (
+                f" | Manufacturer: "
+                f"{manufacturer}"
+            )
 
-    return "\n".join(lines)
+        lines.append(
+            line
+        )
+
+    return "\n".join(
+        lines
+    )
 
 
 def extract_candidate_ids(
@@ -156,7 +253,7 @@ def extract_candidate_ids(
     """
 
     found_ids = re.findall(
-        r"C\d{3}",
+        r"\bC\d{3}\b",
         response.upper()
     )
 
@@ -166,8 +263,10 @@ def extract_candidate_ids(
     for candidate_id in found_ids:
 
         if (
-            candidate_id in valid_candidate_ids
-            and candidate_id not in seen
+            candidate_id
+            in valid_candidate_ids
+            and candidate_id
+            not in seen
         ):
 
             selected.append(
@@ -187,43 +286,160 @@ def extract_candidate_ids(
 
 def test_base_llm():
 
-    print("=" * 70)
-    print("TESTING BASE QWEN MODEL ON REAL FASHION USERS")
-    print("=" * 70)
+    args = parse_args()
+
+    dataset_key = (
+        args.dataset
+    )
+
+    config = (
+        DATASETS[
+            dataset_key
+        ]
+    )
+
+    dataset_folder = (
+        config[
+            "folder"
+        ]
+    )
+
+    dataset_prefix = (
+        config[
+            "prefix"
+        ]
+    )
+
+    num_users_to_test = (
+        args.num_users
+    )
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(
+            __file__
+        )
+    )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(
+            script_dir
+        )
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    llm_input_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_inputs.json"
+    )
+
+    candidate_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_candidates.json"
+    )
+
+    # ======================================================
+    # Validate Input Files
+    # ======================================================
+
+    if not os.path.exists(
+        llm_input_file
+    ):
+
+        raise FileNotFoundError(
+            "\nLLM input file not found:\n"
+            f"{llm_input_file}\n\n"
+            "Run 04_create_llm_inputs.py "
+            f"--dataset {dataset_key} first."
+        )
+
+    if not os.path.exists(
+        candidate_file
+    ):
+
+        raise FileNotFoundError(
+            "\nCandidate file not found:\n"
+            f"{candidate_file}\n\n"
+            "Run 05_create_candidates.py "
+            f"--dataset {dataset_key} first."
+        )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"TESTING BASE QWEN MODEL ON "
+        f"REAL {dataset_folder.upper()} USERS"
+    )
+
+    print(
+        "=" * 70
+    )
 
     # ======================================================
     # Load user histories
     # ======================================================
 
-    print("\nLoading LLM inputs:")
-    print(LLM_INPUT_FILE)
+    print(
+        "\nLoading LLM inputs:"
+    )
+
+    print(
+        llm_input_file
+    )
 
     with open(
-        LLM_INPUT_FILE,
+        llm_input_file,
         "r",
         encoding="utf-8"
     ) as file:
 
-        llm_inputs = json.load(file)
+        llm_inputs = json.load(
+            file
+        )
 
     print(
-        f"Users loaded: {len(llm_inputs):,}"
+        f"Users loaded: "
+        f"{len(llm_inputs):,}"
     )
 
     # ======================================================
     # Load candidate sets
     # ======================================================
 
-    print("\nLoading candidate sets:")
-    print(CANDIDATE_FILE)
+    print(
+        "\nLoading candidate sets:"
+    )
+
+    print(
+        candidate_file
+    )
 
     with open(
-        CANDIDATE_FILE,
+        candidate_file,
         "r",
         encoding="utf-8"
     ) as file:
 
-        candidate_records = json.load(file)
+        candidate_records = (
+            json.load(
+                file
+            )
+        )
 
     print(
         f"Candidate records loaded: "
@@ -237,17 +453,25 @@ def test_base_llm():
     input_lookup = {
         record["user_id"]: record
         for record in llm_inputs
+        if record.get(
+            "user_id"
+        )
     }
 
     candidate_lookup = {
         record["user_id"]: record
-        for record in candidate_records
+        for record
+        in candidate_records
+        if record.get(
+            "user_id"
+        )
     }
 
     common_users = [
         user_id
         for user_id in input_lookup
-        if user_id in candidate_lookup
+        if user_id
+        in candidate_lookup
     ]
 
     print(
@@ -255,22 +479,57 @@ def test_base_llm():
         f"{len(common_users):,}"
     )
 
+    if not common_users:
+
+        raise RuntimeError(
+            "No users exist in both "
+            "the LLM input and candidate files."
+        )
+
+    # ======================================================
+    # GPU Check
+    # ======================================================
+
+    if not torch.cuda.is_available():
+
+        raise RuntimeError(
+            "\nCUDA GPU not available.\n"
+            "Run this script in Colab with a GPU runtime "
+            "or submit it as a GPU job on the HPC cluster."
+        )
+
+    print()
+    print(
+        "GPU:",
+        torch.cuda.get_device_name(
+            0
+        )
+    )
+
     # ======================================================
     # Load Qwen
     # ======================================================
 
-    print("\nLoading tokenizer...")
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_NAME
+    print(
+        "\nLoading tokenizer..."
     )
 
-    print("Loading model...")
+    tokenizer = (
+        AutoTokenizer.from_pretrained(
+            MODEL_NAME
+        )
+    )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
-        torch_dtype=torch.bfloat16,
-        device_map="auto"
+    print(
+        "Loading model..."
+    )
+
+    model = (
+        AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            dtype=torch.bfloat16,
+            device_map="auto"
+        )
     )
 
     model.eval()
@@ -281,53 +540,80 @@ def test_base_llm():
 
     print(
         "Model device:",
-        model.device
+        next(
+            model.parameters()
+        ).device
     )
 
     # ======================================================
     # Test small set of users
     # ======================================================
 
-    test_users = common_users[
-        :NUM_USERS_TO_TEST
-    ]
+    test_users = (
+        common_users[
+            :num_users_to_test
+        ]
+    )
 
-    for user_number, user_id in enumerate(
+    for (
+        user_number,
+        user_id
+    ) in enumerate(
         test_users,
         start=1
     ):
 
-        print("\n" + "=" * 70)
-
         print(
-            f"USER {user_number}: {user_id}"
+            "\n" + "=" * 70
         )
 
-        print("=" * 70)
+        print(
+            f"USER {user_number}: "
+            f"{user_id}"
+        )
 
-        history = input_lookup[
-            user_id
-        ]["history"]
+        print(
+            "=" * 70
+        )
 
-        candidates = candidate_lookup[
-            user_id
-        ]["candidates"]
+        history = (
+            input_lookup[
+                user_id
+            ][
+                "history"
+            ]
+        )
+
+        candidates = (
+            candidate_lookup[
+                user_id
+            ][
+                "candidates"
+            ]
+        )
 
         # --------------------------------------------------
         # Format prompt content
         # --------------------------------------------------
 
-        history_text = format_history(
-            history
+        history_text = (
+            format_history(
+                history
+            )
         )
 
-        candidate_text = format_candidates(
-            candidates
+        candidate_text = (
+            format_candidates(
+                candidates
+            )
         )
 
         candidate_by_id = {
-            candidate["candidate_id"]: candidate
-            for candidate in candidates
+            candidate[
+                "candidate_id"
+            ]: candidate
+            for candidate
+            in candidates
         }
 
         valid_candidate_ids = set(
@@ -346,7 +632,7 @@ def test_base_llm():
                     "You must choose products only from the "
                     "candidate list provided. "
                     "Never invent a product or candidate ID."
-                )
+                ),
             },
             {
                 "role": "user",
@@ -377,18 +663,20 @@ Rules:
 
 Example:
 C001 C014 C027
-"""
-            }
+""",
+            },
         ]
 
         # ==================================================
         # Apply chat template
         # ==================================================
 
-        prompt_text = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
+        prompt_text = (
+            tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
         )
 
         inputs = tokenizer(
@@ -402,38 +690,68 @@ C001 C014 C027
         # Generate
         # ==================================================
 
-        with torch.no_grad():
+        with torch.inference_mode():
 
             outputs = model.generate(
                 **inputs,
                 max_new_tokens=32,
-                do_sample=False
+                do_sample=False,
+                pad_token_id=(
+                    tokenizer.eos_token_id
+                ),
             )
 
         generated_tokens = outputs[
             0,
-            inputs["input_ids"].shape[1]:
+            inputs[
+                "input_ids"
+            ].shape[1]:
         ]
 
-        response = tokenizer.decode(
-            generated_tokens,
-            skip_special_tokens=True
-        ).strip()
+        response = (
+            tokenizer.decode(
+                generated_tokens,
+                skip_special_tokens=True
+            ).strip()
+        )
 
         # ==================================================
         # Validate output
         # ==================================================
 
-        selected_ids = extract_candidate_ids(
-            response,
-            valid_candidate_ids
+        selected_ids = (
+            extract_candidate_ids(
+                response,
+                valid_candidate_ids
+            )
         )
 
-        print("\nRaw model response:")
-        print(response)
+        print(
+            "\nRaw model response:"
+        )
 
-        print("\nValidated candidate IDs:")
-        print(selected_ids)
+        print(
+            response
+        )
+
+        print(
+            "\nValidated candidate IDs:"
+        )
+
+        print(
+            selected_ids
+        )
+
+        if (
+            len(selected_ids)
+            != NUM_RECOMMENDATIONS
+        ):
+
+            print(
+                "\nWARNING: Expected "
+                f"{NUM_RECOMMENDATIONS} valid IDs, "
+                f"but received {len(selected_ids)}."
+            )
 
         # ==================================================
         # Map candidate IDs back to ASINs
@@ -441,21 +759,37 @@ C001 C014 C027
 
         selected_products = []
 
-        for candidate_id in selected_ids:
+        for candidate_id in (
+            selected_ids
+        ):
 
-            candidate = candidate_by_id[
-                candidate_id
-            ]
+            candidate = (
+                candidate_by_id[
+                    candidate_id
+                ]
+            )
 
             selected_products.append(
                 {
-                    "candidate_id": candidate_id,
-                    "asin": candidate["asin"],
-                    "title": candidate["title"]
+                    "candidate_id": (
+                        candidate_id
+                    ),
+                    "asin": (
+                        candidate[
+                            "asin"
+                        ]
+                    ),
+                    "title": (
+                        candidate[
+                            "title"
+                        ]
+                    ),
                 }
             )
 
-        print("\nMapped products:")
+        print(
+            "\nMapped products:"
+        )
 
         print(
             json.dumps(
@@ -465,9 +799,19 @@ C001 C014 C027
             )
         )
 
-    print("\n" + "=" * 70)
-    print("BASE LLM REAL-USER TEST COMPLETE")
-    print("=" * 70)
+    print(
+        "\n" + "=" * 70
+    )
+
+    print(
+        f"BASE LLM "
+        f"{dataset_folder.upper()} "
+        f"REAL-USER TEST COMPLETE"
+    )
+
+    print(
+        "=" * 70
+    )
 
 
 # ==========================================================

@@ -1,22 +1,11 @@
 """
-09_generate_fashion_augmentations.py
+09_generate_augmentations.py
 
-Runs Qwen2.5-3B-Instruct over the full Fashion user set.
+    python pipeline/augmentation/09_generate_augmentations.py --dataset fashion
 
-Inputs:
-    Fashion_llm_train_inputs.json
-    Fashion_llm_train_candidates.json
+    python pipeline/augmentation/09_generate_augmentations.py --dataset video_games
 
-For each user:
-    1. Give Qwen the TRAIN-ONLY user history.
-    2. Give Qwen the 50 candidate products.
-    3. Ask Qwen to select exactly 3 candidate IDs.
-    4. Validate the returned candidate IDs.
-    5. Map valid candidate IDs back to real ASINs.
-    6. Save the generated augmentation records.
-
-Output:
-    Fashion_llm_augmentations_raw.json
+    python pipeline/augmentation/09_generate_augmentations.py --dataset movies_tv
 
 IMPORTANT:
     Validation/test interactions are not supplied to Qwen.
@@ -26,48 +15,39 @@ import json
 import os
 import re
 import time
+import argparse
 
 import torch
 
 from transformers import (
     AutoTokenizer,
-    AutoModelForCausalLM
+    AutoModelForCausalLM,
 )
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+        "domain_label": "fashion products",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+        "domain_label": "video game products",
+    },
 
-EXPORT_DIR = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports"
-)
-
-LLM_INPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_train_inputs.json"
-)
-
-CANDIDATE_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_train_candidates.json"
-)
-
-OUTPUT_FILE = os.path.join(
-    EXPORT_DIR,
-    "Fashion_llm_augmentations_raw.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+        "domain_label": "movie and television products",
+    },
+}
 
 
 # ==========================================================
@@ -80,8 +60,33 @@ NUM_SELECTIONS = 3
 
 MAX_NEW_TOKENS = 32
 
-# Save periodically so a long run can recover if interrupted.
 CHECKPOINT_EVERY = 50
+
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate LLM augmentations "
+            "for an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -89,9 +94,6 @@ CHECKPOINT_EVERY = 50
 # ==========================================================
 
 def clean_text(value):
-    """
-    Convert any value to a clean string.
-    """
 
     if value is None:
         return ""
@@ -99,24 +101,31 @@ def clean_text(value):
     return str(value).strip()
 
 
-def compact_text(value, max_length=220):
-    """
-    Limit long product fields so prompts do not become
-    unnecessarily large.
-    """
+def compact_text(
+    value,
+    max_length=220
+):
 
-    value = clean_text(value)
+    value = clean_text(
+        value
+    )
 
-    if len(value) <= max_length:
+    if (
+        len(value)
+        <= max_length
+    ):
+
         return value
 
-    return value[:max_length].rstrip() + "..."
+    return (
+        value[
+            :max_length
+        ].rstrip()
+        + "..."
+    )
 
 
 def format_history(history):
-    """
-    Convert a user's TRAIN history into prompt text.
-    """
 
     lines = []
 
@@ -126,37 +135,52 @@ def format_history(history):
     ):
 
         title = compact_text(
-            product.get("title", "")
+            product.get(
+                "title",
+                ""
+            )
         )
 
         store = compact_text(
-            product.get("store", ""),
+            product.get(
+                "store",
+                ""
+            ),
             max_length=80
         )
 
         department = compact_text(
-            product.get("department", ""),
+            product.get(
+                "department",
+                ""
+            ),
             max_length=80
         )
 
         manufacturer = compact_text(
-            product.get("manufacturer", ""),
+            product.get(
+                "manufacturer",
+                ""
+            ),
             max_length=80
         )
 
         details = []
 
         if store:
+
             details.append(
                 f"Brand/Store: {store}"
             )
 
         if department:
+
             details.append(
                 f"Department: {department}"
             )
 
         if manufacturer:
+
             details.append(
                 f"Manufacturer: {manufacturer}"
             )
@@ -164,55 +188,70 @@ def format_history(history):
         detail_text = ""
 
         if details:
+
             detail_text = (
-                " | " + " | ".join(details)
+                " | "
+                + " | ".join(
+                    details
+                )
             )
 
         lines.append(
-            f"{index}. {title}{detail_text}"
+            f"{index}. "
+            f"{title}"
+            f"{detail_text}"
         )
 
-    return "\n".join(lines)
+    return "\n".join(
+        lines
+    )
 
 
 def format_candidates(candidates):
-    """
-    Convert the 50 candidates into prompt text.
-
-    Candidate IDs are used so Qwen never needs to generate
-    raw ASIN strings itself.
-    """
 
     lines = []
 
     for candidate in candidates:
 
         candidate_id = clean_text(
-            candidate.get("candidate_id")
+            candidate.get(
+                "candidate_id"
+            )
         )
 
         title = compact_text(
-            candidate.get("title", "")
+            candidate.get(
+                "title",
+                ""
+            )
         )
 
         store = compact_text(
-            candidate.get("store", ""),
+            candidate.get(
+                "store",
+                ""
+            ),
             max_length=80
         )
 
         department = compact_text(
-            candidate.get("department", ""),
+            candidate.get(
+                "department",
+                ""
+            ),
             max_length=80
         )
 
         details = []
 
         if store:
+
             details.append(
                 f"Brand/Store: {store}"
             )
 
         if department:
+
             details.append(
                 f"Department: {department}"
             )
@@ -220,8 +259,12 @@ def format_candidates(candidates):
         detail_text = ""
 
         if details:
+
             detail_text = (
-                " | " + " | ".join(details)
+                " | "
+                + " | ".join(
+                    details
+                )
             )
 
         lines.append(
@@ -230,7 +273,9 @@ def format_candidates(candidates):
             f"{detail_text}"
         )
 
-    return "\n".join(lines)
+    return "\n".join(
+        lines
+    )
 
 
 # ==========================================================
@@ -239,28 +284,29 @@ def format_candidates(candidates):
 
 def build_prompt(
     history,
-    candidates
+    candidates,
+    domain_label
 ):
-    """
-    Build a constrained recommendation prompt.
 
-    The model must return only 3 candidate IDs.
-    """
-
-    history_text = format_history(
-        history
+    history_text = (
+        format_history(
+            history
+        )
     )
 
-    candidate_text = format_candidates(
-        candidates
+    candidate_text = (
+        format_candidates(
+            candidates
+        )
     )
 
     system_message = (
         "You are a recommendation assistant. "
-        "Your task is to infer a user's fashion preferences "
-        "from their historical interactions and select the "
-        "most plausible next products from a fixed candidate "
-        "set. You must only choose products from the supplied "
+        f"Your task is to infer a user's preferences for "
+        f"{domain_label} from their historical interactions "
+        "and select the most plausible next products from "
+        "a fixed candidate set. "
+        "You must only choose products from the supplied "
         "candidate list."
     )
 
@@ -294,12 +340,12 @@ C001 C014 C027
     return [
         {
             "role": "system",
-            "content": system_message
+            "content": system_message,
         },
         {
             "role": "user",
-            "content": user_message
-        }
+            "content": user_message,
+        },
     ]
 
 
@@ -311,14 +357,6 @@ def parse_candidate_ids(
     raw_response,
     valid_candidate_ids
 ):
-    """
-    Extract candidate IDs such as C001 from the model output.
-
-    Only IDs actually present in this user's candidate set
-    are accepted.
-
-    Duplicates are removed while preserving order.
-    """
 
     matches = re.findall(
         r"\bC\d{3}\b",
@@ -330,31 +368,48 @@ def parse_candidate_ids(
 
     for candidate_id in matches:
 
-        if candidate_id not in valid_candidate_ids:
+        if (
+            candidate_id
+            not in valid_candidate_ids
+        ):
             continue
 
-        if candidate_id in seen:
+        if (
+            candidate_id
+            in seen
+        ):
             continue
 
-        seen.add(candidate_id)
+        seen.add(
+            candidate_id
+        )
 
         valid_ids.append(
             candidate_id
         )
 
-    return valid_ids[:NUM_SELECTIONS]
+    return valid_ids[
+        :NUM_SELECTIONS
+    ]
 
 
 # ==========================================================
-# Load Files
+# Load / Save
 # ==========================================================
 
 def load_json(path):
 
-    print(f"Loading:")
-    print(path)
+    print(
+        "Loading:"
+    )
 
-    if not os.path.exists(path):
+    print(
+        path
+    )
+
+    if not os.path.exists(
+        path
+    ):
 
         raise FileNotFoundError(
             f"\nRequired file not found:\n{path}"
@@ -366,12 +421,10 @@ def load_json(path):
         encoding="utf-8"
     ) as file:
 
-        return json.load(file)
+        return json.load(
+            file
+        )
 
-
-# ==========================================================
-# Save Checkpoint
-# ==========================================================
 
 def save_results(
     results,
@@ -398,11 +451,91 @@ def save_results(
 
 def generate_augmentations():
 
-    print("=" * 70)
-    print(
-        "GENERATING FASHION LLM AUGMENTATIONS"
+    args = parse_args()
+
+    dataset_key = (
+        args.dataset
     )
-    print("=" * 70)
+
+    config = (
+        DATASETS[
+            dataset_key
+        ]
+    )
+
+    dataset_folder = (
+        config[
+            "folder"
+        ]
+    )
+
+    dataset_prefix = (
+        config[
+            "prefix"
+        ]
+    )
+
+    domain_label = (
+        config[
+            "domain_label"
+        ]
+    )
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(
+            __file__
+        )
+    )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(
+            script_dir
+        )
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    llm_input_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_inputs.json"
+    )
+
+    candidate_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_candidates.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_augmentations_raw.json"
+    )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"GENERATING "
+        f"{dataset_folder.upper()} "
+        f"LLM AUGMENTATIONS"
+    )
+
+    print(
+        "=" * 70
+    )
 
     # ======================================================
     # GPU Check
@@ -419,7 +552,9 @@ def generate_augmentations():
     print()
     print(
         "GPU:",
-        torch.cuda.get_device_name(0)
+        torch.cuda.get_device_name(
+            0
+        )
     )
 
     # ======================================================
@@ -427,21 +562,26 @@ def generate_augmentations():
     # ======================================================
 
     print()
-    print("Loading train-only LLM inputs:")
+    print(
+        "Loading train-only LLM inputs:"
+    )
 
     llm_inputs = load_json(
-        LLM_INPUT_FILE
+        llm_input_file
     )
 
     print(
-        f"Users loaded: {len(llm_inputs):,}"
+        f"Users loaded: "
+        f"{len(llm_inputs):,}"
     )
 
     print()
-    print("Loading train-only candidate sets:")
+    print(
+        "Loading train-only candidate sets:"
+    )
 
     candidate_records = load_json(
-        CANDIDATE_FILE
+        candidate_file
     )
 
     print(
@@ -454,20 +594,38 @@ def generate_augmentations():
     # ------------------------------------------------------
 
     input_lookup = {
-        record["user_id"]: record
-        for record in llm_inputs
-        if record.get("user_id")
+        record[
+            "user_id"
+        ]: record
+
+        for record
+        in llm_inputs
+
+        if record.get(
+            "user_id"
+        )
     }
 
     candidate_lookup = {
-        record["user_id"]: record
-        for record in candidate_records
-        if record.get("user_id")
+        record[
+            "user_id"
+        ]: record
+
+        for record
+        in candidate_records
+
+        if record.get(
+            "user_id"
+        )
     }
 
     common_users = sorted(
-        set(input_lookup)
-        & set(candidate_lookup)
+        set(
+            input_lookup
+        )
+        & set(
+            candidate_lookup
+        )
     )
 
     print()
@@ -488,7 +646,9 @@ def generate_augmentations():
     # ======================================================
 
     print()
-    print("Loading tokenizer...")
+    print(
+        "Loading tokenizer..."
+    )
 
     tokenizer = (
         AutoTokenizer.from_pretrained(
@@ -496,7 +656,9 @@ def generate_augmentations():
         )
     )
 
-    print("Loading model...")
+    print(
+        "Loading model..."
+    )
 
     model = (
         AutoModelForCausalLM.from_pretrained(
@@ -528,7 +690,7 @@ def generate_augmentations():
     completed_users = set()
 
     if os.path.exists(
-        OUTPUT_FILE
+        output_file
     ):
 
         print()
@@ -541,17 +703,26 @@ def generate_augmentations():
         )
 
         with open(
-            OUTPUT_FILE,
+            output_file,
             "r",
             encoding="utf-8"
         ) as file:
 
-            results = json.load(file)
+            results = json.load(
+                file
+            )
 
         completed_users = {
-            record["user_id"]
-            for record in results
-            if record.get("user_id")
+            record[
+                "user_id"
+            ]
+
+            for record
+            in results
+
+            if record.get(
+                "user_id"
+            )
         }
 
         print(
@@ -565,19 +736,27 @@ def generate_augmentations():
 
     successful_users = sum(
         1
-        for record in results
-        if record.get("status") == "success"
+        for record
+        in results
+        if record.get(
+            "status"
+        ) == "success"
     )
 
     invalid_users = sum(
         1
-        for record in results
-        if record.get("status") != "success"
+        for record
+        in results
+        if record.get(
+            "status"
+        ) != "success"
     )
 
     newly_processed = 0
 
-    start_time = time.time()
+    start_time = (
+        time.time()
+    )
 
     # ======================================================
     # Generate Per User
@@ -588,12 +767,17 @@ def generate_augmentations():
         start=1
     ):
 
-        if user_id in completed_users:
+        if (
+            user_id
+            in completed_users
+        ):
             continue
 
-        input_record = input_lookup[
-            user_id
-        ]
+        input_record = (
+            input_lookup[
+                user_id
+            ]
+        )
 
         candidate_record = (
             candidate_lookup[
@@ -606,23 +790,28 @@ def generate_augmentations():
             []
         )
 
-        candidates = (
-            candidate_record.get(
-                "candidates",
-                []
-            )
+        candidates = candidate_record.get(
+            "candidates",
+            []
         )
 
         if not history or not candidates:
 
             results.append(
                 {
-                    "user_id": user_id,
-                    "status": "skipped",
+                    "user_id": (
+                        user_id
+                    ),
+
+                    "status": (
+                        "skipped"
+                    ),
+
                     "reason": (
                         "Missing history or candidates"
                     ),
-                    "selected_candidates": []
+
+                    "selected_candidates": [],
                 }
             )
 
@@ -636,10 +825,12 @@ def generate_augmentations():
         # --------------------------------------------------
 
         candidate_id_lookup = {
-            candidate["candidate_id"]:
-            candidate
+            candidate[
+                "candidate_id"
+            ]: candidate
 
-            for candidate in candidates
+            for candidate
+            in candidates
 
             if candidate.get(
                 "candidate_id"
@@ -651,12 +842,13 @@ def generate_augmentations():
         )
 
         # --------------------------------------------------
-        # Build chat prompt
+        # Build prompt
         # --------------------------------------------------
 
         messages = build_prompt(
             history,
-            candidates
+            candidates,
+            domain_label
         )
 
         prompt_text = (
@@ -676,6 +868,7 @@ def generate_augmentations():
             key: value.to(
                 model.device
             )
+
             for key, value
             in model_inputs.items()
         }
@@ -686,18 +879,19 @@ def generate_augmentations():
 
         with torch.inference_mode():
 
-            generated_ids = model.generate(
-                **model_inputs,
-                max_new_tokens=(
-                    MAX_NEW_TOKENS
-                ),
-                do_sample=False,
-                pad_token_id=(
-                    tokenizer.eos_token_id
+            generated_ids = (
+                model.generate(
+                    **model_inputs,
+                    max_new_tokens=(
+                        MAX_NEW_TOKENS
+                    ),
+                    do_sample=False,
+                    pad_token_id=(
+                        tokenizer.eos_token_id
+                    ),
                 )
             )
 
-        # Only decode newly generated tokens
         input_length = (
             model_inputs[
                 "input_ids"
@@ -744,20 +938,25 @@ def generate_augmentations():
                     "candidate_id": (
                         candidate_id
                     ),
+
                     "asin": (
-                        candidate["asin"]
+                        candidate[
+                            "asin"
+                        ]
                     ),
+
                     "title": (
                         candidate.get(
                             "title",
                             ""
                         )
                     ),
+
                     "similarity_score": (
                         candidate.get(
                             "similarity_score"
                         )
-                    )
+                    ),
                 }
             )
 
@@ -766,11 +965,16 @@ def generate_augmentations():
         # --------------------------------------------------
 
         if (
-            len(selected_candidates)
+            len(
+                selected_candidates
+            )
             == NUM_SELECTIONS
         ):
 
-            status = "success"
+            status = (
+                "success"
+            )
+
             successful_users += 1
 
         else:
@@ -787,23 +991,33 @@ def generate_augmentations():
 
         results.append(
             {
-                "user_id": user_id,
+                "user_id": (
+                    user_id
+                ),
+
                 "history_length": len(
                     history
                 ),
+
                 "candidate_count": len(
                     candidates
                 ),
+
                 "raw_model_response": (
                     raw_response
                 ),
+
                 "validated_candidate_ids": (
                     selected_ids
                 ),
+
                 "selected_candidates": (
                     selected_candidates
                 ),
-                "status": status
+
+                "status": (
+                    status
+                ),
             }
         )
 
@@ -813,7 +1027,11 @@ def generate_augmentations():
         # Progress
         # ==================================================
 
-        if newly_processed % 10 == 0:
+        if (
+            newly_processed
+            % 10
+            == 0
+        ):
 
             print(
                 f"Processed "
@@ -837,7 +1055,7 @@ def generate_augmentations():
 
             save_results(
                 results,
-                OUTPUT_FILE
+                output_file
             )
 
             print(
@@ -851,7 +1069,7 @@ def generate_augmentations():
 
     save_results(
         results,
-        OUTPUT_FILE
+        output_file
     )
 
     elapsed = (
@@ -864,11 +1082,23 @@ def generate_augmentations():
     # ======================================================
 
     print()
-    print("=" * 70)
     print(
-        "FASHION LLM AUGMENTATION GENERATION COMPLETE"
+        "=" * 70
     )
-    print("=" * 70)
+
+    print(
+        f"{dataset_folder.upper()} "
+        f"LLM AUGMENTATION GENERATION COMPLETE"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"Dataset:                   "
+        f"{dataset_folder}"
+    )
 
     print(
         f"Total eligible users:      "
@@ -904,7 +1134,8 @@ def generate_augmentations():
 
     print()
     print(
-        f"Output file:\n{OUTPUT_FILE}"
+        f"Output file:\n"
+        f"{output_file}"
     )
 
     # ======================================================
@@ -913,7 +1144,8 @@ def generate_augmentations():
 
     successful_examples = [
         record
-        for record in results
+        for record
+        in results
         if record.get(
             "status"
         ) == "success"
@@ -922,29 +1154,49 @@ def generate_augmentations():
     if successful_examples:
 
         print()
-        print("=" * 70)
+        print(
+            "=" * 70
+        )
+
         print(
             "EXAMPLE GENERATED AUGMENTATION"
         )
-        print("=" * 70)
+
+        print(
+            "=" * 70
+        )
 
         print(
             json.dumps(
-                successful_examples[0],
+                successful_examples[
+                    0
+                ],
                 indent=2,
                 ensure_ascii=False
             )
         )
 
     print()
-    print("=" * 70)
-    print("COMPLETE")
-    print("=" * 70)
+    print(
+        "=" * 70
+    )
+
+    print(
+        "COMPLETE"
+    )
+
+    print(
+        "=" * 70
+    )
 
     print()
-    print("Next step:")
     print(
-        "10_validate_fashion_augmentations.py"
+        "Next step:"
+    )
+
+    print(
+        "10_validate_augmentations.py "
+        f"--dataset {dataset_key}"
     )
 
 

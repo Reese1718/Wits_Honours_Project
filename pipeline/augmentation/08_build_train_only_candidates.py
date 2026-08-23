@@ -1,70 +1,42 @@
 """
 08_build_train_only_candidates.py
 
-Builds 50 candidate products per Fashion user using ONLY the
-train-only LLM histories created by:
 
-    07_build_train_only_llm_inputs.py
+    python pipeline/augmentation/08_build_train_only_candidates.py --dataset fashion
 
-Candidate generation methodology is intentionally kept the same
-as the original:
+    python pipeline/augmentation/08_build_train_only_candidates.py --dataset video_games
 
-    05_create_fashion_candidates.py
-
-Method:
-    1. Build TF-IDF representations of the Fashion catalogue.
-    2. Build a textual profile from each user's TRAIN history.
-    3. Compute cosine similarity between the user profile and
-       every catalogue product.
-    4. Exclude products already present in the TRAIN history.
-    5. Keep the top 50 remaining products.
-
-Output:
-    Fashion_llm_train_candidates.json
+    python pipeline/augmentation/08_build_train_only_candidates.py --dataset movies_tv
 """
 
 import json
 import os
+import argparse
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-LLM_INPUT_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_train_inputs.json"
-)
-
-CATALOGUE_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_catalogue.json"
-)
-
-OUTPUT_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_train_candidates.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
 
 # ==========================================================
@@ -75,13 +47,36 @@ TOP_K_CANDIDATES = 50
 
 
 # ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Build train-only TF-IDF candidate sets "
+            "for an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
+
+
+# ==========================================================
 # Helper Functions
 # ==========================================================
 
 def clean_text(value):
-    """
-    Convert a value into a clean string.
-    """
 
     if value is None:
         return ""
@@ -90,11 +85,11 @@ def clean_text(value):
 
 
 def join_list(values):
-    """
-    Convert a list of text fields into a single string.
-    """
 
-    if not isinstance(values, list):
+    if not isinstance(
+        values,
+        list
+    ):
         return ""
 
     return " ".join(
@@ -109,34 +104,47 @@ def build_product_text(product):
     Build one textual representation of a catalogue product
     for TF-IDF similarity.
 
-    This matches the original candidate-generation logic
-    used in 05_create_fashion_candidates.py.
+    This matches the candidate-generation logic used in:
+        05_create_candidates.py
     """
 
     parts = []
 
     title = clean_text(
-        product.get("title")
+        product.get(
+            "title"
+        )
     )
 
     store = clean_text(
-        product.get("store")
+        product.get(
+            "store"
+        )
     )
 
     department = clean_text(
-        product.get("department")
+        product.get(
+            "department"
+        )
     )
 
     manufacturer = clean_text(
-        product.get("manufacturer")
+        product.get(
+            "manufacturer"
+        )
     )
 
     features = join_list(
-        product.get("features", [])
+        product.get(
+            "features",
+            []
+        )
     )
 
     description = clean_text(
-        product.get("description")
+        product.get(
+            "description"
+        )
     )
 
     if title:
@@ -154,7 +162,6 @@ def build_product_text(product):
     if features:
         parts.append(features)
 
-    # Keep description shorter so it does not dominate
     if description:
         parts.append(
             description[:500]
@@ -178,7 +185,6 @@ def build_user_profile(history):
         )
 
         if text:
-
             history_texts.append(
                 text
             )
@@ -194,10 +200,60 @@ def build_user_profile(history):
 
 def create_train_only_candidates():
 
-    print("=" * 70)
-    print(
-        "BUILDING TRAIN-ONLY FASHION LLM CANDIDATES"
+    args = parse_args()
+
+    dataset_key = args.dataset
+    config = DATASETS[dataset_key]
+
+    dataset_folder = config["folder"]
+    dataset_prefix = config["prefix"]
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(__file__)
     )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(script_dir)
+    )
+
+    export_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder,
+        "exports"
+    )
+
+    llm_input_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_inputs.json"
+    )
+
+    catalogue_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_catalogue.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_train_candidates.json"
+    )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
+    print("=" * 70)
+
+    print(
+        f"BUILDING TRAIN-ONLY "
+        f"{dataset_folder.upper()} "
+        f"LLM CANDIDATES"
+    )
+
     print("=" * 70)
 
     # ======================================================
@@ -205,42 +261,52 @@ def create_train_only_candidates():
     # ======================================================
 
     if not os.path.exists(
-        LLM_INPUT_FILE
+        llm_input_file
     ):
 
         raise FileNotFoundError(
             "\nTrain-only LLM input file not found:\n"
-            f"{LLM_INPUT_FILE}\n\n"
-            "Run 07_build_train_only_llm_inputs.py first."
+            f"{llm_input_file}\n\n"
+            "Run 07_build_train_only_llm_inputs.py "
+            f"--dataset {dataset_key} first."
         )
 
     if not os.path.exists(
-        CATALOGUE_FILE
+        catalogue_file
     ):
 
         raise FileNotFoundError(
-            "\nFashion LLM catalogue not found:\n"
-            f"{CATALOGUE_FILE}\n\n"
-            "Run 02_build_fashion_llm_catalogue.py first."
+            "\nLLM catalogue not found:\n"
+            f"{catalogue_file}\n\n"
+            "Run 02_build_llm_catalogue.py "
+            f"--dataset {dataset_key} first."
         )
 
     # ======================================================
     # Load catalogue
     # ======================================================
 
-    print("\nLoading LLM catalogue:")
-    print(CATALOGUE_FILE)
+    print(
+        "\nLoading LLM catalogue:"
+    )
+
+    print(
+        catalogue_file
+    )
 
     with open(
-        CATALOGUE_FILE,
+        catalogue_file,
         "r",
         encoding="utf-8"
     ) as file:
 
-        catalogue = json.load(file)
+        catalogue = json.load(
+            file
+        )
 
     print(
-        f"Catalogue products: {len(catalogue):,}"
+        f"Catalogue products: "
+        f"{len(catalogue):,}"
     )
 
     # ------------------------------------------------------
@@ -250,18 +316,29 @@ def create_train_only_candidates():
     catalogue_texts = []
     catalogue_asins = []
 
+    skipped_catalogue_products = 0
+
     for product in catalogue:
 
         asin = clean_text(
-            product.get("asin")
+            product.get(
+                "asin"
+            )
         )
 
         if not asin:
+
+            skipped_catalogue_products += 1
             continue
 
         text = build_product_text(
             product
         )
+
+        if not text:
+
+            skipped_catalogue_products += 1
+            continue
 
         catalogue_asins.append(
             asin
@@ -276,15 +353,34 @@ def create_train_only_candidates():
         f"{len(catalogue_asins):,}"
     )
 
+    print(
+        f"Skipped catalogue products: "
+        f"{skipped_catalogue_products:,}"
+    )
+
+    if not catalogue_texts:
+
+        raise RuntimeError(
+            "No usable catalogue product text was created."
+        )
+
     # ------------------------------------------------------
     # ASIN -> catalogue product lookup
     # ------------------------------------------------------
 
     catalogue_lookup = {
-        clean_text(product["asin"]): product
+        clean_text(
+            product.get(
+                "asin"
+            )
+        ): product
+
         for product in catalogue
+
         if clean_text(
-            product.get("asin")
+            product.get(
+                "asin"
+            )
         )
     }
 
@@ -324,23 +420,26 @@ def create_train_only_candidates():
     )
 
     print(
-        LLM_INPUT_FILE
+        llm_input_file
     )
 
     with open(
-        LLM_INPUT_FILE,
+        llm_input_file,
         "r",
         encoding="utf-8"
     ) as file:
 
-        llm_inputs = json.load(file)
+        llm_inputs = json.load(
+            file
+        )
 
     print(
-        f"Users loaded: {len(llm_inputs):,}"
+        f"Users loaded: "
+        f"{len(llm_inputs):,}"
     )
 
     # ======================================================
-    # Generate candidate sets
+    # Generate Candidate Sets
     # ======================================================
 
     output_records = []
@@ -377,11 +476,17 @@ def create_train_only_candidates():
 
         history_asins = {
             clean_text(
-                product.get("asin")
+                product.get(
+                    "asin"
+                )
             )
+
             for product in history
+
             if clean_text(
-                product.get("asin")
+                product.get(
+                    "asin"
+                )
             )
         }
 
@@ -404,7 +509,9 @@ def create_train_only_candidates():
 
         user_vector = (
             vectorizer.transform(
-                [user_profile]
+                [
+                    user_profile
+                ]
             )
         )
 
@@ -433,18 +540,18 @@ def create_train_only_candidates():
 
         for index in ranked_indices:
 
-            asin = catalogue_asins[
-                index
-            ]
+            asin = (
+                catalogue_asins[
+                    index
+                ]
+            )
 
             # ------------------------------------------------
-            # IMPORTANT:
-            # Exclude ONLY products already visible in the
+            # Exclude ONLY products already visible in
             # TRAIN history.
             #
-            # Validation/test interactions were already
-            # removed by file 07 and therefore never enter
-            # this profile or exclusion set.
+            # Validation/test interactions were removed in
+            # file 07 and never enter this profile.
             # ------------------------------------------------
 
             if asin in history_asins:
@@ -465,36 +572,43 @@ def create_train_only_candidates():
                     "candidate_id": (
                         candidate_id
                     ),
+
                     "asin": asin,
+
                     "similarity_score": float(
                         similarities[
                             index
                         ]
                     ),
+
                     "title": clean_text(
                         product.get(
                             "title"
                         )
                     ),
+
                     "store": clean_text(
                         product.get(
                             "store"
                         )
                     ),
+
                     "department": clean_text(
                         product.get(
                             "department"
                         )
                     ),
+
                     "manufacturer": clean_text(
                         product.get(
                             "manufacturer"
                         )
                     ),
+
                     "features": product.get(
                         "features",
                         []
-                    )
+                    ),
                 }
             )
 
@@ -525,9 +639,10 @@ def create_train_only_candidates():
 
             users_with_fewer_than_k += 1
 
-        # Verify that no training item leaked into candidates
         candidate_asins = {
-            candidate["asin"]
+            candidate[
+                "asin"
+            ]
             for candidate in candidates
         }
 
@@ -552,7 +667,9 @@ def create_train_only_candidates():
 
         output_records.append(
             {
-                "user_id": user_id,
+                "user_id": (
+                    user_id
+                ),
 
                 "history_length": len(
                     history
@@ -566,7 +683,9 @@ def create_train_only_candidates():
                     candidate_count
                 ),
 
-                "candidates": candidates
+                "candidates": (
+                    candidates
+                ),
             }
         )
 
@@ -575,7 +694,9 @@ def create_train_only_candidates():
         # --------------------------------------------------
 
         if (
-            user_number % 250 == 0
+            user_number
+            % 250
+            == 0
         ):
 
             print(
@@ -585,14 +706,16 @@ def create_train_only_candidates():
             )
 
     # ======================================================
-    # Final validation
+    # Final Validation
     # ======================================================
 
     print()
     print("=" * 70)
+
     print(
         "VALIDATING CANDIDATE SETS"
     )
+
     print("=" * 70)
 
     if not output_records:
@@ -601,15 +724,22 @@ def create_train_only_candidates():
             "No candidate records were created."
         )
 
+    # ------------------------------------------------------
     # Check duplicate users
+    # ------------------------------------------------------
+
     user_ids = [
-        record["user_id"]
+        record[
+            "user_id"
+        ]
         for record in output_records
     ]
 
     if (
         len(user_ids)
-        != len(set(user_ids))
+        != len(
+            set(user_ids)
+        )
     ):
 
         raise RuntimeError(
@@ -617,20 +747,29 @@ def create_train_only_candidates():
             "in candidate output."
         )
 
+    # ------------------------------------------------------
     # Check duplicate candidates within each user
+    # ------------------------------------------------------
+
     duplicate_candidate_users = 0
 
     for record in output_records:
 
         candidate_asins = [
-            candidate["asin"]
+            candidate[
+                "asin"
+            ]
             for candidate
-            in record["candidates"]
+            in record[
+                "candidates"
+            ]
         ]
 
         if (
             len(candidate_asins)
-            != len(set(candidate_asins))
+            != len(
+                set(candidate_asins)
+            )
         ):
 
             duplicate_candidate_users += 1
@@ -661,15 +800,20 @@ def create_train_only_candidates():
     )
 
     # ======================================================
-    # Save output
+    # Save Output
     # ======================================================
 
     print()
-    print("Saving candidate file:")
-    print(OUTPUT_FILE)
+    print(
+        "Saving candidate file:"
+    )
+
+    print(
+        output_file
+    )
 
     with open(
-        OUTPUT_FILE,
+        output_file,
         "w",
         encoding="utf-8"
     ) as file:
@@ -687,10 +831,19 @@ def create_train_only_candidates():
 
     print()
     print("=" * 70)
+
     print(
-        "TRAIN-ONLY FASHION CANDIDATES CREATED"
+        f"TRAIN-ONLY "
+        f"{dataset_folder.upper()} "
+        f"CANDIDATES CREATED"
     )
+
     print("=" * 70)
+
+    print(
+        f"Dataset:                   "
+        f"{dataset_folder}"
+    )
 
     print(
         f"Users written:             "
@@ -731,7 +884,8 @@ def create_train_only_candidates():
 
     print()
     print(
-        f"Output file:\n{OUTPUT_FILE}"
+        f"Output file:\n"
+        f"{output_file}"
     )
 
     # ======================================================
@@ -742,9 +896,11 @@ def create_train_only_candidates():
 
         print()
         print("=" * 70)
+
         print(
             "EXAMPLE TRAIN-ONLY CANDIDATE SET"
         )
+
         print("=" * 70)
 
         example = (
@@ -759,26 +915,30 @@ def create_train_only_candidates():
                             "user_id"
                         ]
                     ),
+
                     "history_length": (
                         example[
                             "history_length"
                         ]
                     ),
+
                     "history_asins": (
                         example[
                             "history_asins"
                         ]
                     ),
+
                     "candidate_count": (
                         example[
                             "candidate_count"
                         ]
                     ),
+
                     "first_five_candidates": (
                         example[
                             "candidates"
                         ][:5]
-                    )
+                    ),
                 },
                 indent=2,
                 ensure_ascii=False
@@ -787,13 +947,21 @@ def create_train_only_candidates():
 
     print()
     print("=" * 70)
-    print("COMPLETE")
+
+    print(
+        "COMPLETE"
+    )
+
     print("=" * 70)
 
     print()
-    print("Next step:")
     print(
-        "09_generate_fashion_augmentations.py"
+        "Next step:"
+    )
+
+    print(
+        "09_generate_augmentations.py "
+        f"--dataset {dataset_key}"
     )
 
 

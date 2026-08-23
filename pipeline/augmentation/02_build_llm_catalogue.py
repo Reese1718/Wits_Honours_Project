@@ -1,34 +1,64 @@
+"""
+02_build_llm_catalogue.py
+
+    python pipeline/augmentation/02_build_llm_catalogue.py --dataset fashion
+
+    python pipeline/augmentation/02_build_llm_catalogue.py --dataset video_games
+
+    python pipeline/augmentation/02_build_llm_catalogue.py --dataset movies_tv
+"""
+
 import json
 import os
+import argparse
 
 
 # ==========================================================
-# Project Paths
+# Dataset Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
+DATASETS = {
+    "fashion": {
+        "folder": "Fashion",
+        "prefix": "Fashion",
+    },
 
-PROJECT_DIR = os.path.dirname(
-    os.path.dirname(SCRIPT_DIR)
-)
+    "video_games": {
+        "folder": "Video Games",
+        "prefix": "Video_Games",
+    },
 
-INPUT_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_metadata_lookup.json"
-)
+    "movies_tv": {
+        "folder": "Movies and TV Shows",
+        "prefix": "Movies_TV",
+    },
+}
 
-OUTPUT_FILE = os.path.join(
-    PROJECT_DIR,
-    "datasets",
-    "Fashion",
-    "exports",
-    "Fashion_llm_catalogue.json"
-)
+
+# ==========================================================
+# Arguments
+# ==========================================================
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Build the cleaned LLM catalogue "
+            "for an Amazon dataset."
+        )
+    )
+
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASETS.keys(),
+        help=(
+            "Dataset to process: "
+            "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    return parser.parse_args()
 
 
 # ==========================================================
@@ -44,6 +74,7 @@ def clean_text(value):
         return ""
 
     if isinstance(value, list):
+
         return " ".join(
             str(item).strip()
             for item in value
@@ -62,6 +93,7 @@ def clean_list(value):
         return []
 
     if isinstance(value, list):
+
         return [
             str(item).strip()
             for item in value
@@ -82,19 +114,90 @@ def clean_list(value):
 
 def build_llm_catalogue():
 
-    print("=" * 70)
-    print("BUILDING FASHION LLM CATALOGUE")
+    args = parse_args()
+
+    dataset_key = args.dataset
+    config = DATASETS[dataset_key]
+
+    dataset_folder = config["folder"]
+    dataset_prefix = config["prefix"]
+
+    # ======================================================
+    # Project Paths
+    # ======================================================
+
+    script_dir = os.path.dirname(
+        os.path.abspath(__file__)
+    )
+
+    project_dir = os.path.dirname(
+        os.path.dirname(script_dir)
+    )
+
+    dataset_dir = os.path.join(
+        project_dir,
+        "datasets",
+        dataset_folder
+    )
+
+    export_dir = os.path.join(
+        dataset_dir,
+        "exports"
+    )
+
+    input_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_metadata_lookup.json"
+    )
+
+    output_file = os.path.join(
+        export_dir,
+        f"{dataset_prefix}_llm_catalogue.json"
+    )
+
+    # ======================================================
+    # Validate Input
+    # ======================================================
+
+    if not os.path.exists(
+        input_file
+    ):
+
+        raise FileNotFoundError(
+            "\nMetadata lookup not found:\n"
+            f"{input_file}\n\n"
+            "Run 01_build_metadata_lookup.py "
+            f"--dataset {dataset_key} first."
+        )
+
+    # ======================================================
+    # Header
+    # ======================================================
+
     print("=" * 70)
 
-    # ------------------------------------------------------
+    print(
+        f"BUILDING "
+        f"{dataset_folder.upper()} "
+        f"LLM CATALOGUE"
+    )
+
+    print("=" * 70)
+
+    # ======================================================
     # Load metadata lookup
-    # ------------------------------------------------------
+    # ======================================================
 
-    print("\nLoading metadata lookup:")
-    print(INPUT_FILE)
+    print(
+        "\nLoading metadata lookup:"
+    )
+
+    print(
+        input_file
+    )
 
     with open(
-        INPUT_FILE,
+        input_file,
         "r",
         encoding="utf-8"
     ) as file:
@@ -102,12 +205,13 @@ def build_llm_catalogue():
         metadata = json.load(file)
 
     print(
-        f"Metadata records loaded: {len(metadata):,}"
+        f"Metadata records loaded: "
+        f"{len(metadata):,}"
     )
 
-    # ------------------------------------------------------
+    # ======================================================
     # Build catalogue
-    # ------------------------------------------------------
+    # ======================================================
 
     catalogue = []
 
@@ -120,7 +224,7 @@ def build_llm_catalogue():
     missing_description = 0
     missing_features = 0
 
-    # Fashion_metadata_lookup.json is keyed by ASIN
+    # Metadata lookup JSON is keyed by ASIN
     for product in metadata.values():
 
         # --------------------------------------------------
@@ -171,15 +275,22 @@ def build_llm_catalogue():
             {}
         )
 
-        if not isinstance(details, dict):
+        if not isinstance(
+            details,
+            dict
+        ):
             details = {}
 
         department = clean_text(
-            details.get("Department")
+            details.get(
+                "Department"
+            )
         )
 
         manufacturer = clean_text(
-            details.get("Manufacturer")
+            details.get(
+                "Manufacturer"
+            )
         )
 
         # --------------------------------------------------
@@ -224,16 +335,16 @@ def build_llm_catalogue():
                 "department": department,
                 "manufacturer": manufacturer,
                 "description": description,
-                "features": features
+                "features": features,
             }
         )
 
-    # ------------------------------------------------------
+    # ======================================================
     # Save catalogue
-    # ------------------------------------------------------
+    # ======================================================
 
     with open(
-        OUTPUT_FILE,
+        output_file,
         "w",
         encoding="utf-8"
     ) as file:
@@ -249,48 +360,71 @@ def build_llm_catalogue():
     # Summary
     # ======================================================
 
-    print("\n" + "=" * 70)
-    print("LLM CATALOGUE CREATED")
-    print("=" * 70)
-
     print(
-        f"Products in catalogue:      {len(catalogue):,}"
+        "\n" + "=" * 70
     )
 
     print(
-        f"Missing titles:             {missing_title:,}"
+        "LLM CATALOGUE CREATED"
     )
 
     print(
-        f"Missing stores:             {missing_store:,}"
+        "=" * 70
     )
 
     print(
-        f"Missing main categories:    {missing_main_category:,}"
+        f"Dataset:                    "
+        f"{dataset_folder}"
     )
 
     print(
-        f"Missing category lists:     {missing_categories:,}"
+        f"Products in catalogue:      "
+        f"{len(catalogue):,}"
     )
 
     print(
-        f"Missing departments:        {missing_department:,}"
+        f"Missing titles:             "
+        f"{missing_title:,}"
     )
 
     print(
-        f"Missing manufacturers:      {missing_manufacturer:,}"
+        f"Missing stores:             "
+        f"{missing_store:,}"
     )
 
     print(
-        f"Missing descriptions:       {missing_description:,}"
+        f"Missing main categories:    "
+        f"{missing_main_category:,}"
     )
 
     print(
-        f"Missing features:           {missing_features:,}"
+        f"Missing category lists:     "
+        f"{missing_categories:,}"
     )
 
     print(
-        f"\nOutput file:\n{OUTPUT_FILE}"
+        f"Missing departments:        "
+        f"{missing_department:,}"
+    )
+
+    print(
+        f"Missing manufacturers:      "
+        f"{missing_manufacturer:,}"
+    )
+
+    print(
+        f"Missing descriptions:       "
+        f"{missing_description:,}"
+    )
+
+    print(
+        f"Missing features:           "
+        f"{missing_features:,}"
+    )
+
+    print(
+        f"\nOutput file:\n"
+        f"{output_file}"
     )
 
     # ======================================================
@@ -299,8 +433,13 @@ def build_llm_catalogue():
 
     if catalogue:
 
-        print("\nExample catalogue record:")
-        print("-" * 70)
+        print(
+            "\nExample catalogue record:"
+        )
+
+        print(
+            "-" * 70
+        )
 
         print(
             json.dumps(
@@ -310,9 +449,17 @@ def build_llm_catalogue():
             )
         )
 
-    print("\n" + "=" * 70)
-    print("COMPLETE")
-    print("=" * 70)
+    print(
+        "\n" + "=" * 70
+    )
+
+    print(
+        "COMPLETE"
+    )
+
+    print(
+        "=" * 70
+    )
 
 
 # ==========================================================
