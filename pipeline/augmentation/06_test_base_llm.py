@@ -1,16 +1,6 @@
 """
 06_test_base_llm.py
 
-Tests Qwen2.5-3B-Instruct on a small number of real users
-for one of the supported Amazon datasets.
-
-Supported datasets:
-    fashion
-    video_games
-    movies_tv
-
-Examples:
-
     python pipeline/augmentation/06_test_base_llm.py --dataset fashion
 
     python pipeline/augmentation/06_test_base_llm.py --dataset video_games

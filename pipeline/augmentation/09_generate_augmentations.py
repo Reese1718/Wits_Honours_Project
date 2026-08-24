@@ -1,14 +1,54 @@
 """
 09_generate_augmentations.py
 
-    python pipeline/augmentation/09_generate_augmentations.py --dataset fashion
+Runs Qwen2.5-3B-Instruct over the full eligible user set
+for one of the supported datasets.
 
-    python pipeline/augmentation/09_generate_augmentations.py --dataset video_games
+Supported datasets:
+    fashion
+    video_games
+    movies_tv
 
-    python pipeline/augmentation/09_generate_augmentations.py --dataset movies_tv
+This version performs BATCHED inference for substantially
+better GPU utilisation.
+
+Inputs:
+    {prefix}_llm_train_inputs.json
+    {prefix}_llm_train_candidates.json
+
+For each user:
+    1. Give Qwen the TRAIN-ONLY user history.
+    2. Give Qwen the candidate products.
+    3. Ask Qwen to select exactly 3 candidate IDs.
+    4. Validate the returned candidate IDs.
+    5. Map valid candidate IDs back to real ASINs.
+    6. Save the generated augmentation records.
+
+Output:
+    {prefix}_llm_augmentations_raw.json
+
+Examples:
+
+    python pipeline/augmentation/09_generate_augmentations.py \
+        --dataset fashion
+
+    python pipeline/augmentation/09_generate_augmentations.py \
+        --dataset video_games
+
+    python pipeline/augmentation/09_generate_augmentations.py \
+        --dataset movies_tv
+
+Optional:
+
+    python pipeline/augmentation/09_generate_augmentations.py \
+        --dataset video_games \
+        --batch-size 16
 
 IMPORTANT:
-    Validation/test interactions are not supplied to Qwen.
+    Validation/test interactions are NEVER supplied to Qwen.
+
+    Existing output files are automatically loaded so interrupted
+    runs can resume without regenerating completed users.
 """
 
 import json
@@ -51,7 +91,7 @@ DATASETS = {
 
 
 # ==========================================================
-# Model Configuration
+# Model / Generation Configuration
 # ==========================================================
 
 MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
@@ -60,7 +100,13 @@ NUM_SELECTIONS = 3
 
 MAX_NEW_TOKENS = 32
 
-CHECKPOINT_EVERY = 50
+# A100 40 GB:
+# 16 is a safe starting point.
+DEFAULT_BATCH_SIZE = 16
+
+# Saving the entire growing JSON file to Google Drive every
+# 50 users causes unnecessary I/O overhead.
+DEFAULT_CHECKPOINT_EVERY = 500
 
 
 # ==========================================================
@@ -71,7 +117,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Generate LLM augmentations "
+            "Generate batched LLM augmentations "
             "for an Amazon dataset."
         )
     )
@@ -83,6 +129,27 @@ def parse_args():
         help=(
             "Dataset to process: "
             "fashion, video_games, or movies_tv"
+        ),
+    )
+
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help=(
+            "Number of users processed simultaneously. "
+            f"Default: {DEFAULT_BATCH_SIZE}"
+        ),
+    )
+
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=DEFAULT_CHECKPOINT_EVERY,
+        help=(
+            "Save progress after approximately this many "
+            "newly processed users. "
+            f"Default: {DEFAULT_CHECKPOINT_EVERY}"
         ),
     )
 
@@ -110,22 +177,19 @@ def compact_text(
         value
     )
 
-    if (
-        len(value)
-        <= max_length
-    ):
-
+    if len(value) <= max_length:
         return value
 
     return (
-        value[
-            :max_length
-        ].rstrip()
+        value[:max_length].rstrip()
         + "..."
     )
 
 
 def format_history(history):
+    """
+    Format one user's TRAIN-ONLY history.
+    """
 
     lines = []
 
@@ -168,19 +232,16 @@ def format_history(history):
         details = []
 
         if store:
-
             details.append(
                 f"Brand/Store: {store}"
             )
 
         if department:
-
             details.append(
                 f"Department: {department}"
             )
 
         if manufacturer:
-
             details.append(
                 f"Manufacturer: {manufacturer}"
             )
@@ -191,9 +252,7 @@ def format_history(history):
 
             detail_text = (
                 " | "
-                + " | ".join(
-                    details
-                )
+                + " | ".join(details)
             )
 
         lines.append(
@@ -208,6 +267,9 @@ def format_history(history):
 
 
 def format_candidates(candidates):
+    """
+    Format one user's candidate set.
+    """
 
     lines = []
 
@@ -262,9 +324,7 @@ def format_candidates(candidates):
 
             detail_text = (
                 " | "
-                + " | ".join(
-                    details
-                )
+                + " | ".join(details)
             )
 
         lines.append(
@@ -288,16 +348,12 @@ def build_prompt(
     domain_label
 ):
 
-    history_text = (
-        format_history(
-            history
-        )
+    history_text = format_history(
+        history
     )
 
-    candidate_text = (
-        format_candidates(
-            candidates
-        )
+    candidate_text = format_candidates(
+        candidates
     )
 
     system_message = (
@@ -317,7 +373,7 @@ USER HISTORY
 -------------
 {history_text}
 
-Below are 50 candidate products.
+Below are candidate products.
 
 CANDIDATES
 ----------
@@ -357,6 +413,10 @@ def parse_candidate_ids(
     raw_response,
     valid_candidate_ids
 ):
+    """
+    Extract valid unique candidate IDs while preserving
+    the order returned by Qwen.
+    """
 
     matches = re.findall(
         r"\bC\d{3}\b",
@@ -364,6 +424,7 @@ def parse_candidate_ids(
     )
 
     valid_ids = []
+
     seen = set()
 
     for candidate_id in matches:
@@ -374,10 +435,7 @@ def parse_candidate_ids(
         ):
             continue
 
-        if (
-            candidate_id
-            in seen
-        ):
+        if candidate_id in seen:
             continue
 
         seen.add(
@@ -412,7 +470,8 @@ def load_json(path):
     ):
 
         raise FileNotFoundError(
-            f"\nRequired file not found:\n{path}"
+            f"\nRequired file not found:\n"
+            f"{path}"
         )
 
     with open(
@@ -431,8 +490,17 @@ def save_results(
     output_file
 ):
 
+    # Write to a temporary file first.
+    # This reduces the risk of corrupting the real checkpoint
+    # if Colab disconnects during a write.
+
+    temporary_file = (
+        output_file
+        + ".tmp"
+    )
+
     with open(
-        output_file,
+        temporary_file,
         "w",
         encoding="utf-8"
     ) as file:
@@ -443,6 +511,11 @@ def save_results(
             indent=2,
             ensure_ascii=False
         )
+
+    os.replace(
+        temporary_file,
+        output_file
+    )
 
 
 # ==========================================================
@@ -456,6 +529,26 @@ def generate_augmentations():
     dataset_key = (
         args.dataset
     )
+
+    batch_size = (
+        args.batch_size
+    )
+
+    checkpoint_every = (
+        args.checkpoint_every
+    )
+
+    if batch_size < 1:
+
+        raise ValueError(
+            "--batch-size must be at least 1."
+        )
+
+    if checkpoint_every < 1:
+
+        raise ValueError(
+            "--checkpoint-every must be at least 1."
+        )
 
     config = (
         DATASETS[
@@ -537,6 +630,16 @@ def generate_augmentations():
         "=" * 70
     )
 
+    print(
+        f"\nBatch size:        "
+        f"{batch_size}"
+    )
+
+    print(
+        f"Checkpoint every:  "
+        f"{checkpoint_every:,} users"
+    )
+
     # ======================================================
     # GPU Check
     # ======================================================
@@ -549,19 +652,45 @@ def generate_augmentations():
             "or submit it as a GPU job on the HPC cluster."
         )
 
-    print()
-    print(
-        "GPU:",
+    gpu_name = (
         torch.cuda.get_device_name(
             0
         )
     )
+
+    print()
+
+    print(
+        "GPU:",
+        gpu_name
+    )
+
+    # A100 supports BF16 extremely well.
+
+    use_bfloat16 = (
+        torch.cuda.is_bf16_supported()
+    )
+
+    model_dtype = (
+        torch.bfloat16
+        if use_bfloat16
+        else torch.float16
+    )
+
+    print(
+        "Model dtype:",
+        model_dtype
+    )
+
+    # Allow TensorFloat-32 operations where applicable.
+    torch.backends.cuda.matmul.allow_tf32 = True
 
     # ======================================================
     # Load Inputs
     # ======================================================
 
     print()
+
     print(
         "Loading train-only LLM inputs:"
     )
@@ -576,6 +705,7 @@ def generate_augmentations():
     )
 
     print()
+
     print(
         "Loading train-only candidate sets:"
     )
@@ -594,28 +724,34 @@ def generate_augmentations():
     # ------------------------------------------------------
 
     input_lookup = {
-        record[
-            "user_id"
-        ]: record
+        clean_text(
+            record.get(
+                "user_id"
+            )
+        ): record
 
-        for record
-        in llm_inputs
+        for record in llm_inputs
 
-        if record.get(
-            "user_id"
+        if clean_text(
+            record.get(
+                "user_id"
+            )
         )
     }
 
     candidate_lookup = {
-        record[
-            "user_id"
-        ]: record
+        clean_text(
+            record.get(
+                "user_id"
+            )
+        ): record
 
-        for record
-        in candidate_records
+        for record in candidate_records
 
-        if record.get(
-            "user_id"
+        if clean_text(
+            record.get(
+                "user_id"
+            )
         )
     }
 
@@ -629,6 +765,7 @@ def generate_augmentations():
     )
 
     print()
+
     print(
         f"Users available in both files: "
         f"{len(common_users):,}"
@@ -646,6 +783,7 @@ def generate_augmentations():
     # ======================================================
 
     print()
+
     print(
         "Loading tokenizer..."
     )
@@ -656,6 +794,19 @@ def generate_augmentations():
         )
     )
 
+    # Decoder-only LLMs should use left padding during
+    # batched generation.
+
+    tokenizer.padding_side = (
+        "left"
+    )
+
+    if tokenizer.pad_token_id is None:
+
+        tokenizer.pad_token = (
+            tokenizer.eos_token
+        )
+
     print(
         "Loading model..."
     )
@@ -663,12 +814,16 @@ def generate_augmentations():
     model = (
         AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
-            dtype=torch.float16,
+            dtype=model_dtype,
             device_map="auto"
         )
     )
 
     model.eval()
+
+    model_device = next(
+        model.parameters()
+    ).device
 
     print(
         "Model loaded successfully."
@@ -676,13 +831,11 @@ def generate_augmentations():
 
     print(
         "Model device:",
-        next(
-            model.parameters()
-        ).device
+        model_device
     )
 
     # ======================================================
-    # Resume Existing Output if Present
+    # Resume Existing Output
     # ======================================================
 
     results = []
@@ -694,6 +847,7 @@ def generate_augmentations():
     ):
 
         print()
+
         print(
             "Existing output file found."
         )
@@ -713,15 +867,18 @@ def generate_augmentations():
             )
 
         completed_users = {
-            record[
-                "user_id"
-            ]
+            clean_text(
+                record.get(
+                    "user_id"
+                )
+            )
 
-            for record
-            in results
+            for record in results
 
-            if record.get(
-                "user_id"
+            if clean_text(
+                record.get(
+                    "user_id"
+                )
             )
         }
 
@@ -731,13 +888,37 @@ def generate_augmentations():
         )
 
     # ======================================================
-    # Generation Statistics
+    # Determine Remaining Users
+    # ======================================================
+
+    remaining_users = [
+        user_id
+        for user_id in common_users
+        if user_id not in completed_users
+    ]
+
+    print()
+
+    print(
+        f"Users remaining: "
+        f"{len(remaining_users):,}"
+    )
+
+    if not remaining_users:
+
+        print(
+            "\nAll eligible users are already complete."
+        )
+
+        return
+
+    # ======================================================
+    # Existing Statistics
     # ======================================================
 
     successful_users = sum(
         1
-        for record
-        in results
+        for record in results
         if record.get(
             "status"
         ) == "success"
@@ -745,8 +926,7 @@ def generate_augmentations():
 
     invalid_users = sum(
         1
-        for record
-        in results
+        for record in results
         if record.get(
             "status"
         ) != "success"
@@ -754,293 +934,404 @@ def generate_augmentations():
 
     newly_processed = 0
 
+    users_since_checkpoint = 0
+
     start_time = (
         time.time()
     )
 
+    total_remaining = len(
+        remaining_users
+    )
+
     # ======================================================
-    # Generate Per User
+    # Batched Generation
     # ======================================================
 
-    for user_number, user_id in enumerate(
-        common_users,
-        start=1
+    for batch_start in range(
+        0,
+        total_remaining,
+        batch_size
     ):
 
-        if (
-            user_id
-            in completed_users
-        ):
-            continue
-
-        input_record = (
-            input_lookup[
-                user_id
+        batch_user_ids = (
+            remaining_users[
+                batch_start:
+                batch_start
+                + batch_size
             ]
         )
 
-        candidate_record = (
-            candidate_lookup[
-                user_id
-            ]
-        )
+        # --------------------------------------------------
+        # Build batch metadata
+        # --------------------------------------------------
 
-        history = input_record.get(
-            "history",
-            []
-        )
+        batch_prompt_texts = []
 
-        candidates = candidate_record.get(
-            "candidates",
-            []
-        )
+        batch_metadata = []
 
-        if not history or not candidates:
+        for user_id in batch_user_ids:
 
-            results.append(
+            input_record = (
+                input_lookup[
+                    user_id
+                ]
+            )
+
+            candidate_record = (
+                candidate_lookup[
+                    user_id
+                ]
+            )
+
+            history = input_record.get(
+                "history",
+                []
+            )
+
+            candidates = (
+                candidate_record.get(
+                    "candidates",
+                    []
+                )
+            )
+
+            # ----------------------------------------------
+            # Handle invalid / empty user record
+            # ----------------------------------------------
+
+            if not history or not candidates:
+
+                results.append(
+                    {
+                        "user_id": (
+                            user_id
+                        ),
+
+                        "status": (
+                            "skipped"
+                        ),
+
+                        "reason": (
+                            "Missing history "
+                            "or candidates"
+                        ),
+
+                        "selected_candidates": [],
+                    }
+                )
+
+                invalid_users += 1
+                newly_processed += 1
+                users_since_checkpoint += 1
+
+                continue
+
+            candidate_id_lookup = {
+                clean_text(
+                    candidate.get(
+                        "candidate_id"
+                    )
+                ): candidate
+
+                for candidate in candidates
+
+                if clean_text(
+                    candidate.get(
+                        "candidate_id"
+                    )
+                )
+            }
+
+            valid_candidate_ids = set(
+                candidate_id_lookup.keys()
+            )
+
+            messages = build_prompt(
+                history,
+                candidates,
+                domain_label
+            )
+
+            prompt_text = (
+                tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+            )
+
+            batch_prompt_texts.append(
+                prompt_text
+            )
+
+            batch_metadata.append(
                 {
                     "user_id": (
                         user_id
                     ),
 
-                    "status": (
-                        "skipped"
+                    "history": (
+                        history
                     ),
 
-                    "reason": (
-                        "Missing history or candidates"
+                    "candidates": (
+                        candidates
                     ),
 
-                    "selected_candidates": [],
+                    "candidate_id_lookup": (
+                        candidate_id_lookup
+                    ),
+
+                    "valid_candidate_ids": (
+                        valid_candidate_ids
+                    ),
                 }
             )
 
-            invalid_users += 1
-            newly_processed += 1
-
-            continue
-
         # --------------------------------------------------
-        # Candidate lookup
+        # Some records may have been skipped.
         # --------------------------------------------------
 
-        candidate_id_lookup = {
-            candidate[
-                "candidate_id"
-            ]: candidate
+        if batch_prompt_texts:
 
-            for candidate
-            in candidates
+            # ==================================================
+            # Tokenize Entire Batch
+            # ==================================================
 
-            if candidate.get(
-                "candidate_id"
-            )
-        }
-
-        valid_candidate_ids = set(
-            candidate_id_lookup.keys()
-        )
-
-        # --------------------------------------------------
-        # Build prompt
-        # --------------------------------------------------
-
-        messages = build_prompt(
-            history,
-            candidates,
-            domain_label
-        )
-
-        prompt_text = (
-            tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-        )
-
-        model_inputs = tokenizer(
-            prompt_text,
-            return_tensors="pt"
-        )
-
-        model_inputs = {
-            key: value.to(
-                model.device
+            model_inputs = tokenizer(
+                batch_prompt_texts,
+                return_tensors="pt",
+                padding=True,
             )
 
-            for key, value
-            in model_inputs.items()
-        }
-
-        # --------------------------------------------------
-        # Generate
-        # --------------------------------------------------
-
-        with torch.inference_mode():
-
-            generated_ids = (
-                model.generate(
-                    **model_inputs,
-                    max_new_tokens=(
-                        MAX_NEW_TOKENS
-                    ),
-                    do_sample=False,
-                    pad_token_id=(
-                        tokenizer.eos_token_id
-                    ),
+            model_inputs = {
+                key: value.to(
+                    model_device
                 )
-            )
 
-        input_length = (
-            model_inputs[
-                "input_ids"
-            ].shape[1]
-        )
-
-        new_tokens = (
-            generated_ids[
-                0,
-                input_length:
-            ]
-        )
-
-        raw_response = (
-            tokenizer.decode(
-                new_tokens,
-                skip_special_tokens=True
-            ).strip()
-        )
-
-        # --------------------------------------------------
-        # Validate candidate IDs
-        # --------------------------------------------------
-
-        selected_ids = (
-            parse_candidate_ids(
-                raw_response,
-                valid_candidate_ids
-            )
-        )
-
-        selected_candidates = []
-
-        for candidate_id in selected_ids:
-
-            candidate = (
-                candidate_id_lookup[
-                    candidate_id
-                ]
-            )
-
-            selected_candidates.append(
-                {
-                    "candidate_id": (
-                        candidate_id
-                    ),
-
-                    "asin": (
-                        candidate[
-                            "asin"
-                        ]
-                    ),
-
-                    "title": (
-                        candidate.get(
-                            "title",
-                            ""
-                        )
-                    ),
-
-                    "similarity_score": (
-                        candidate.get(
-                            "similarity_score"
-                        )
-                    ),
-                }
-            )
-
-        # --------------------------------------------------
-        # Determine status
-        # --------------------------------------------------
-
-        if (
-            len(
-                selected_candidates
-            )
-            == NUM_SELECTIONS
-        ):
-
-            status = (
-                "success"
-            )
-
-            successful_users += 1
-
-        else:
-
-            status = (
-                "invalid_output"
-            )
-
-            invalid_users += 1
-
-        # --------------------------------------------------
-        # Save record
-        # --------------------------------------------------
-
-        results.append(
-            {
-                "user_id": (
-                    user_id
-                ),
-
-                "history_length": len(
-                    history
-                ),
-
-                "candidate_count": len(
-                    candidates
-                ),
-
-                "raw_model_response": (
-                    raw_response
-                ),
-
-                "validated_candidate_ids": (
-                    selected_ids
-                ),
-
-                "selected_candidates": (
-                    selected_candidates
-                ),
-
-                "status": (
-                    status
-                ),
+                for key, value
+                in model_inputs.items()
             }
-        )
 
-        newly_processed += 1
+            padded_input_length = (
+                model_inputs[
+                    "input_ids"
+                ].shape[1]
+            )
+
+            # ==================================================
+            # Generate Entire Batch
+            # ==================================================
+
+            with torch.inference_mode():
+
+                generated_ids = (
+                    model.generate(
+                        **model_inputs,
+                        max_new_tokens=(
+                            MAX_NEW_TOKENS
+                        ),
+                        do_sample=False,
+                        pad_token_id=(
+                            tokenizer.pad_token_id
+                        ),
+                        eos_token_id=(
+                            tokenizer.eos_token_id
+                        ),
+                    )
+                )
+
+            # ==================================================
+            # Decode Each User
+            # ==================================================
+
+            for output_index, metadata in enumerate(
+                batch_metadata
+            ):
+
+                new_tokens = (
+                    generated_ids[
+                        output_index,
+                        padded_input_length:
+                    ]
+                )
+
+                raw_response = (
+                    tokenizer.decode(
+                        new_tokens,
+                        skip_special_tokens=True
+                    ).strip()
+                )
+
+                valid_candidate_ids = (
+                    metadata[
+                        "valid_candidate_ids"
+                    ]
+                )
+
+                candidate_id_lookup = (
+                    metadata[
+                        "candidate_id_lookup"
+                    ]
+                )
+
+                selected_ids = (
+                    parse_candidate_ids(
+                        raw_response,
+                        valid_candidate_ids
+                    )
+                )
+
+                selected_candidates = []
+
+                for candidate_id in selected_ids:
+
+                    candidate = (
+                        candidate_id_lookup[
+                            candidate_id
+                        ]
+                    )
+
+                    selected_candidates.append(
+                        {
+                            "candidate_id": (
+                                candidate_id
+                            ),
+
+                            "asin": (
+                                candidate[
+                                    "asin"
+                                ]
+                            ),
+
+                            "title": (
+                                candidate.get(
+                                    "title",
+                                    ""
+                                )
+                            ),
+
+                            "similarity_score": (
+                                candidate.get(
+                                    "similarity_score"
+                                )
+                            ),
+                        }
+                    )
+
+                # ------------------------------------------
+                # Status
+                # ------------------------------------------
+
+                if (
+                    len(
+                        selected_candidates
+                    )
+                    == NUM_SELECTIONS
+                ):
+
+                    status = (
+                        "success"
+                    )
+
+                    successful_users += 1
+
+                else:
+
+                    status = (
+                        "invalid_output"
+                    )
+
+                    invalid_users += 1
+
+                # ------------------------------------------
+                # Save result
+                # ------------------------------------------
+
+                results.append(
+                    {
+                        "user_id": (
+                            metadata[
+                                "user_id"
+                            ]
+                        ),
+
+                        "history_length": len(
+                            metadata[
+                                "history"
+                            ]
+                        ),
+
+                        "candidate_count": len(
+                            metadata[
+                                "candidates"
+                            ]
+                        ),
+
+                        "raw_model_response": (
+                            raw_response
+                        ),
+
+                        "validated_candidate_ids": (
+                            selected_ids
+                        ),
+
+                        "selected_candidates": (
+                            selected_candidates
+                        ),
+
+                        "status": (
+                            status
+                        ),
+                    }
+                )
+
+                newly_processed += 1
+                users_since_checkpoint += 1
+
+            # Free batch tensors before the next iteration.
+            del model_inputs
+            del generated_ids
 
         # ==================================================
         # Progress
         # ==================================================
 
-        if (
-            newly_processed
-            % 10
-            == 0
-        ):
+        elapsed = (
+            time.time()
+            - start_time
+        )
+
+        if newly_processed:
+
+            average_seconds = (
+                elapsed
+                / newly_processed
+            )
+
+            remaining_count = (
+                total_remaining
+                - newly_processed
+            )
+
+            estimated_remaining_seconds = (
+                remaining_count
+                * average_seconds
+            )
 
             print(
                 f"Processed "
-                f"{newly_processed:,} new users "
-                f"| overall position "
-                f"{user_number:,}/"
-                f"{len(common_users):,}"
-                f" | successes "
-                f"{successful_users:,}"
+                f"{newly_processed:,}/"
+                f"{total_remaining:,} new users "
+                f"| total saved "
+                f"{len(results):,} "
+                f"| successes "
+                f"{successful_users:,} "
+                f"| avg "
+                f"{average_seconds:.3f}s/user "
+                f"| estimated remaining "
+                f"{estimated_remaining_seconds / 3600:.2f}h"
             )
 
         # ==================================================
@@ -1048,9 +1339,8 @@ def generate_augmentations():
         # ==================================================
 
         if (
-            newly_processed
-            % CHECKPOINT_EVERY
-            == 0
+            users_since_checkpoint
+            >= checkpoint_every
         ):
 
             save_results(
@@ -1062,6 +1352,8 @@ def generate_augmentations():
                 f"Checkpoint saved "
                 f"({len(results):,} total records)"
             )
+
+            users_since_checkpoint = 0
 
     # ======================================================
     # Final Save
@@ -1082,6 +1374,7 @@ def generate_augmentations():
     # ======================================================
 
     print()
+
     print(
         "=" * 70
     )
@@ -1098,6 +1391,11 @@ def generate_augmentations():
     print(
         f"Dataset:                   "
         f"{dataset_folder}"
+    )
+
+    print(
+        f"Batch size:                "
+        f"{batch_size}"
     )
 
     print(
@@ -1129,10 +1427,16 @@ def generate_augmentations():
 
         print(
             f"Average seconds/user:      "
-            f"{elapsed / newly_processed:.2f}"
+            f"{elapsed / newly_processed:.3f}"
+        )
+
+        print(
+            f"Total generation time:     "
+            f"{elapsed / 3600:.2f} hours"
         )
 
     print()
+
     print(
         f"Output file:\n"
         f"{output_file}"
@@ -1144,8 +1448,7 @@ def generate_augmentations():
 
     successful_examples = [
         record
-        for record
-        in results
+        for record in results
         if record.get(
             "status"
         ) == "success"
@@ -1154,6 +1457,7 @@ def generate_augmentations():
     if successful_examples:
 
         print()
+
         print(
             "=" * 70
         )
@@ -1168,15 +1472,14 @@ def generate_augmentations():
 
         print(
             json.dumps(
-                successful_examples[
-                    0
-                ],
+                successful_examples[0],
                 indent=2,
                 ensure_ascii=False
             )
         )
 
     print()
+
     print(
         "=" * 70
     )
@@ -1190,6 +1493,7 @@ def generate_augmentations():
     )
 
     print()
+
     print(
         "Next step:"
     )
