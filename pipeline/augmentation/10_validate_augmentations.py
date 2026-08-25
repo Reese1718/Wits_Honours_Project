@@ -137,7 +137,7 @@ def validate_augmentations():
 
     raw_augmentation_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_llm_augmentations_raw.json"
+        f"{dataset_prefix}_llama_augmentations_raw.json"
     )
 
     train_input_file = os.path.join(
@@ -157,12 +157,12 @@ def validate_augmentations():
 
     output_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_llm_augmentations.json"
+        f"{dataset_prefix}_llama_augmentations.json"
     )
 
     invalid_output_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_llm_augmentations_invalid.json"
+        f"{dataset_prefix}_llama_augmentations_invalid.json"
     )
 
     # ======================================================

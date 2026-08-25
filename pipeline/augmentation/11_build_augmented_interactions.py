@@ -160,7 +160,7 @@ def build_augmented_histories():
 
     augmentation_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_llm_augmentations.json"
+        f"{dataset_prefix}_llama_augmentations.json"
     )
 
     catalogue_file = os.path.join(
@@ -170,7 +170,7 @@ def build_augmented_histories():
 
     output_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_augmented_user_histories.json"
+        f"{dataset_prefix}_llama_augmented_user_histories.json"
     )
 
     # ======================================================

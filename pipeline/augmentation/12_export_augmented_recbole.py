@@ -136,12 +136,12 @@ def export_augmented_recbole():
 
     input_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_augmented_user_histories.json"
+        f"{dataset_prefix}_llama_augmented_user_histories.json"
     )
 
     output_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_augmented.inter"
+        f"{dataset_prefix}_llama_augmented.inter"
     )
 
     # ======================================================

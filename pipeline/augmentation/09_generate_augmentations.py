@@ -2,6 +2,7 @@
 09_generate_augmentations.py
 
 Runs Qwen2.5-3B-Instruct over the full eligible user set
+and now also runs Llam-3.2
 for one of the supported datasets.
 
 Supported datasets:
@@ -94,7 +95,7 @@ DATASETS = {
 # Model / Generation Configuration
 # ==========================================================
 
-MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+MODEL_NAME = "meta-llama/Llama-3.2-3B-Instruct"
 
 NUM_SELECTIONS = 3
 
@@ -609,7 +610,7 @@ def generate_augmentations():
 
     output_file = os.path.join(
         export_dir,
-        f"{dataset_prefix}_llm_augmentations_raw.json"
+        f"{dataset_prefix}_llama_augmentations_raw.json"
     )
 
     # ======================================================
