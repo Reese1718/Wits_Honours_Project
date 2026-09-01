@@ -7,7 +7,7 @@
 # ----------------------------------------------------------
 
 dataset: Fashion_augmented
-data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/
+data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
 ITEM_ID_FIELD: item_id
