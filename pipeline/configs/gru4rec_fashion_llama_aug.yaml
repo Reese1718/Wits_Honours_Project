@@ -1,0 +1,98 @@
+# ==========================================================
+# GRU4Rec Configuration - Fashion
+# ==========================================================
+
+# ----------------------------------------------------------
+# Dataset
+# ----------------------------------------------------------
+
+dataset: Fashion_Llama
+
+data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
+
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+TIME_FIELD: timestamp
+
+load_col:
+  inter: [user_id, item_id, timestamp]
+
+
+# ----------------------------------------------------------
+# Sequential Recommendation
+# ----------------------------------------------------------
+
+ITEM_LIST_LENGTH_FIELD: item_length
+LIST_SUFFIX: _list
+
+MAX_ITEM_LIST_LENGTH: 50
+
+
+# ----------------------------------------------------------
+# GRU4Rec Model
+# ----------------------------------------------------------
+
+hidden_size: 64
+
+num_layers: 1
+
+dropout_prob: 0.2
+
+loss_type: CE
+
+
+# ----------------------------------------------------------
+# Training
+# ----------------------------------------------------------
+
+epochs: 30
+
+train_batch_size: 256
+
+learning_rate: 0.0001
+
+stopping_step: 10
+
+eval_step: 1
+
+train_neg_sample_args: null
+
+
+# ----------------------------------------------------------
+# Reproducibility
+# ----------------------------------------------------------
+
+seed: 42
+
+reproducibility: True
+
+
+# ----------------------------------------------------------
+# Evaluation
+# ----------------------------------------------------------
+
+eval_args:
+  group_by: user
+  order: TO
+  split:
+    LS: valid_and_test
+  mode: full
+
+metrics:
+  - Recall
+  - MRR
+  - NDCG
+  - Hit
+
+topk: 10
+
+valid_metric: NDCG@10
+
+metric_decimal_place: 4
+
+
+# ----------------------------------------------------------
+# Hardware
+# ----------------------------------------------------------
+
+gpu_id: 0
