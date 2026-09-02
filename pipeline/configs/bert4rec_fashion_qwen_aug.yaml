@@ -1,0 +1,99 @@
+# ==========================================================
+# BERT4Rec Configuration - Fashion
+# ==========================================================
+
+# ----------------------------------------------------------
+# Dataset
+# ----------------------------------------------------------
+
+dataset: Fashion_Qwen
+data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
+
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+TIME_FIELD: timestamp
+
+load_col:
+  inter: [user_id, item_id, timestamp]
+
+# ----------------------------------------------------------
+# Sequential Recommendation
+# ----------------------------------------------------------
+
+ITEM_LIST_LENGTH_FIELD: item_length
+LIST_SUFFIX: _list
+MAX_ITEM_LIST_LENGTH: 50
+
+# ----------------------------------------------------------
+# BERT4Rec Model
+# ----------------------------------------------------------
+
+hidden_size: 64
+inner_size: 256
+n_layers: 2
+n_heads: 2
+hidden_dropout_prob: 0.2
+attn_dropout_prob: 0.2
+hidden_act: gelu
+layer_norm_eps: 1e-12
+initializer_range: 0.02
+
+# CRITICAL FIX 1: Masking 20% is too much for sparse data.
+mask_ratio: 0.1
+loss_type: CE
+
+# ----------------------------------------------------------
+# Training
+# ----------------------------------------------------------
+
+epochs: 30
+train_batch_size: 256
+
+# CRITICAL FIX 2: Lower the learning rate to prevent gradient explosion
+learning_rate: 0.0001
+
+stopping_step: 10
+eval_step: 1
+train_neg_sample_args: null
+
+clip_grad_norm:
+  max_norm: 1.0
+  norm_type: 2
+
+# Disable mixed-precision training to prevent NaN loss
+enable_amp: False
+enable_scaler: False
+
+# ----------------------------------------------------------
+# Reproducibility
+# ----------------------------------------------------------
+
+seed: 42
+reproducibility: True
+
+# ----------------------------------------------------------
+# Evaluation
+# ----------------------------------------------------------
+
+eval_args:
+  group_by: user
+  order: TO
+  split:
+    LS: valid_and_test
+  mode: full
+
+metrics:
+  - Recall
+  - MRR
+  - NDCG
+  - Hit
+
+topk: 10
+valid_metric: NDCG@10
+metric_decimal_place: 4
+
+# ----------------------------------------------------------
+# Hardware
+# ----------------------------------------------------------
+
+gpu_id: 0
