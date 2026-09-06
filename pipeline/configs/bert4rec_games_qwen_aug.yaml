@@ -1,12 +1,13 @@
 # ==========================================================
-# SASRec Configuration
+# BERT4Rec Configuration - Video Games
 # ==========================================================
 
 # ----------------------------------------------------------
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Movies_and_TV_Shows
+dataset: Video_Games_Qwen
+
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
@@ -16,6 +17,7 @@ TIME_FIELD: timestamp
 load_col:
   inter: [user_id, item_id, timestamp]
 
+
 # ----------------------------------------------------------
 # Sequential Recommendation
 # ----------------------------------------------------------
@@ -23,46 +25,52 @@ load_col:
 ITEM_LIST_LENGTH_FIELD: item_length
 LIST_SUFFIX: _list
 
-# Maximum number of historical items used by SASRec
 MAX_ITEM_LIST_LENGTH: 50
 
-# ----------------------------------------------------------
-# Model
-# ----------------------------------------------------------
 
-embedding_size: 64
+# ----------------------------------------------------------
+# BERT4Rec Model
+# ----------------------------------------------------------
 
 hidden_size: 64
 
-num_layers: 2
+inner_size: 256
 
-num_heads: 2
+n_layers: 2
 
-dropout_prob: 0.2
+n_heads: 2
 
 hidden_dropout_prob: 0.2
 
 attn_dropout_prob: 0.2
 
+hidden_act: gelu
+
+layer_norm_eps: 1e-12
+
+initializer_range: 0.02
+
+mask_ratio: 0.2
+
+loss_type: CE
+
+
 # ----------------------------------------------------------
 # Training
 # ----------------------------------------------------------
 
-epochs: 100
+epochs: 30
 
-train_batch_size: 1024
+train_batch_size: 256
 
-learning_rate: 0.001
+learning_rate: 0.00001
 
 stopping_step: 10
 
 eval_step: 1
 
-# Explicitly use Cross Entropy loss.
-# CE loss does not use negative sampling.
-loss_type: CE
-
 train_neg_sample_args: null
+
 
 # ----------------------------------------------------------
 # Reproducibility
@@ -71,6 +79,7 @@ train_neg_sample_args: null
 seed: 42
 
 reproducibility: True
+
 
 # ----------------------------------------------------------
 # Evaluation
@@ -94,6 +103,7 @@ topk: 10
 valid_metric: NDCG@10
 
 metric_decimal_place: 4
+
 
 # ----------------------------------------------------------
 # Hardware
