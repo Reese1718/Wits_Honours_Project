@@ -6,7 +6,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Video_Games_Qwen
+dataset: Video_Games_qwen_augmented
 
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
