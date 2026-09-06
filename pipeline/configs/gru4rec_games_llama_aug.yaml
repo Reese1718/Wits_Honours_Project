@@ -6,7 +6,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Video_Games_llama_augmented
+dataset: Video_Games_LLama
 
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
