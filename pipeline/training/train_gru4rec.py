@@ -1,25 +1,21 @@
 import os
 import sys
+
 import torch
 
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.model.sequential_recommender.gru4rec import GRU4Rec
 from recbole.trainer import Trainer
-from recbole.utils import init_seed, init_logger
+from recbole.utils import init_logger, init_seed
 
 
 # ==========================================================
 # Project Configuration
 # ==========================================================
 
-SCRIPT_DIR = os.path.dirname(
-    os.path.abspath(__file__)
-)
-
-PIPELINE_DIR = os.path.dirname(
-    SCRIPT_DIR
-)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PIPELINE_DIR = os.path.dirname(SCRIPT_DIR)
 
 if len(sys.argv) != 2:
     raise ValueError(
@@ -29,8 +25,13 @@ if len(sys.argv) != 2:
 CONFIG_FILE = os.path.join(
     PIPELINE_DIR,
     "configs",
-    sys.argv[1]
+    sys.argv[1],
 )
+
+if not os.path.isfile(CONFIG_FILE):
+    raise FileNotFoundError(
+        f"Configuration file not found: {CONFIG_FILE}"
+    )
 
 
 # ==========================================================
@@ -38,7 +39,6 @@ CONFIG_FILE = os.path.join(
 # ==========================================================
 
 def train_gru4rec():
-
     print("=" * 70)
     print("GRU4Rec Training")
     print("=" * 70)
@@ -46,18 +46,14 @@ def train_gru4rec():
     print("\nUsing configuration:")
     print(CONFIG_FILE)
 
-
     # ======================================================
     # Load RecBole Configuration
     # ======================================================
 
     config = Config(
         model="GRU4Rec",
-        config_file_list=[
-            CONFIG_FILE
-        ]
+        config_file_list=[CONFIG_FILE],
     )
-
 
     # ======================================================
     # Print Important Configuration
@@ -67,6 +63,8 @@ def train_gru4rec():
     print("-" * 70)
 
     config_parameters = [
+        "dataset",
+        "embedding_size",
         "hidden_size",
         "num_layers",
         "dropout_prob",
@@ -74,30 +72,28 @@ def train_gru4rec():
         "learning_rate",
         "train_batch_size",
         "epochs",
+        "stopping_step",
+        "seed",
+        "reproducibility",
         "device",
     ]
 
     for parameter in config_parameters:
-
         try:
-            print(
-                f"{parameter}: {config[parameter]}"
-            )
+            print(f"{parameter}: {config[parameter]}")
         except KeyError:
             pass
 
     print("-" * 70)
 
-
     # ======================================================
-    # Set Random Seed
+    # Set Random Seed Before Dataset Preparation
     # ======================================================
 
     init_seed(
         config["seed"],
-        config["reproducibility"]
+        config["reproducibility"],
     )
-
 
     # ======================================================
     # Initialise Logging
@@ -105,51 +101,27 @@ def train_gru4rec():
 
     init_logger(config)
 
-
     # ======================================================
     # Hardware
     # ======================================================
 
     print("\nHardware:")
     print("-" * 70)
-
-    print(
-        "PyTorch version:",
-        torch.__version__
-    )
-
-    print(
-        "CUDA available:",
-        torch.cuda.is_available()
-    )
+    print("PyTorch version:", torch.__version__)
+    print("CUDA available:", torch.cuda.is_available())
 
     if torch.cuda.is_available():
-
-        print(
-            "GPU:",
-            torch.cuda.get_device_name(0)
-        )
+        print("GPU:", torch.cuda.get_device_name(0))
 
         gpu_memory = (
-            torch.cuda
-            .get_device_properties(0)
-            .total_memory
+            torch.cuda.get_device_properties(0).total_memory
             / 1024**3
         )
 
-        print(
-            "GPU memory:",
-            round(gpu_memory, 2),
-            "GB"
-        )
+        print("GPU memory:", round(gpu_memory, 2), "GB")
 
-    print(
-        "RecBole device:",
-        config["device"]
-    )
-
+    print("RecBole device:", config["device"])
     print("-" * 70)
-
 
     # ======================================================
     # Create Dataset
@@ -157,50 +129,49 @@ def train_gru4rec():
 
     print("\nCreating dataset...")
 
-    dataset = create_dataset(
-        config
-    )
+    dataset = create_dataset(config)
 
     print("\nDataset created successfully.")
-
     print(dataset)
-
 
     # ======================================================
     # Prepare Train / Validation / Test Sets
     # ======================================================
 
-    print(
-        "\nPreparing train/validation/test sets..."
-    )
+    print("\nPreparing train/validation/test sets...")
 
     train_data, valid_data, test_data = data_preparation(
         config,
-        dataset
+        dataset,
     )
 
-    print(
-        "\nData preparation complete."
-    )
+    print("\nData preparation complete.")
 
+    # ======================================================
+    # Reset Seed Before Model Initialisation
+    # ======================================================
+
+    # Dataset preparation can consume different amounts of randomness for
+    # datasets of different sizes. Resetting here follows RecBole's standard
+    # workflow and gives paired runs using the same seed a controlled model
+    # initialisation and training RNG state.
+    init_seed(
+        config["seed"] + config["local_rank"],
+        config["reproducibility"],
+    )
 
     # ======================================================
     # Create GRU4Rec Model
     # ======================================================
 
-    print(
-        "\nCreating GRU4Rec model..."
-    )
+    print("\nCreating GRU4Rec model...")
 
     model = GRU4Rec(
         config,
-        train_data.dataset
-    ).to(
-        config["device"]
-    )
+        train_data.dataset,
+    ).to(config["device"])
 
     print(model)
-
 
     # ======================================================
     # Model Information
@@ -219,106 +190,54 @@ def train_gru4rec():
 
     print("\nModel Information:")
     print("-" * 70)
-
+    print(f"Total parameters:      {total_parameters:,}")
+    print(f"Trainable parameters:  {trainable_parameters:,}")
     print(
-        f"Total parameters:      {total_parameters:,}"
-    )
-
-    print(
-        f"Trainable parameters:  {trainable_parameters:,}"
-    )
-
-    print(
-        f"Model device:          "
+        "Model device:          "
         f"{next(model.parameters()).device}"
     )
-
     print("-" * 70)
-
 
     # ======================================================
     # Create Trainer
     # ======================================================
 
-    trainer = Trainer(
-        config,
-        model
-    )
-
+    trainer = Trainer(config, model)
 
     # ======================================================
     # Train Model
     # ======================================================
 
-    print(
-        "\n" + "=" * 70
-    )
-
-    print(
-        "STARTING GRU4Rec TRAINING"
-    )
-
-    print(
-        "=" * 70
-    )
+    print("\n" + "=" * 70)
+    print("STARTING GRU4Rec TRAINING")
+    print("=" * 70)
 
     best_valid_score, best_valid_result = trainer.fit(
         train_data,
         valid_data,
         saved=True,
-        show_progress=True
+        show_progress=True,
     )
-
 
     # ======================================================
     # Best Validation Results
     # ======================================================
 
-    print(
-        "\n" + "=" * 70
-    )
-
-    print(
-        "BEST VALIDATION RESULT"
-    )
-
-    print(
-        "=" * 70
-    )
-
-    print(
-        f"Best validation score: {best_valid_score}"
-    )
-
-    print(
-        "Validation results:"
-    )
-
-    print(
-        best_valid_result
-    )
-
+    print("\n" + "=" * 70)
+    print("BEST VALIDATION RESULT")
+    print("=" * 70)
+    print(f"Best validation score: {best_valid_score}")
+    print("Validation results:")
+    print(best_valid_result)
 
     # ======================================================
     # Final Test Evaluation
     # ======================================================
 
-    print(
-        "\n" + "=" * 70
-    )
-
-    print(
-        "FINAL TEST EVALUATION"
-    )
-
-    print(
-        "=" * 70
-    )
-
-    print(
-        "\nLoading best checkpoint for final evaluation..."
-    )
-
+    print("\n" + "=" * 70)
+    print("FINAL TEST EVALUATION")
+    print("=" * 70)
+    print("\nLoading best checkpoint for final evaluation...")
 
     # ======================================================
     # PyTorch Checkpoint Loading Workaround
@@ -327,57 +246,34 @@ def train_gru4rec():
     original_torch_load = torch.load
 
     def trusted_torch_load(*args, **kwargs):
-
         kwargs["weights_only"] = False
-
-        return original_torch_load(
-            *args,
-            **kwargs
-        )
+        return original_torch_load(*args, **kwargs)
 
     torch.load = trusted_torch_load
 
     try:
-
         test_result = trainer.evaluate(
             test_data,
             load_best_model=True,
-            show_progress=True
+            show_progress=True,
         )
-
     finally:
-
         torch.load = original_torch_load
-
 
     # ======================================================
     # Print Test Results
     # ======================================================
 
-    print(
-        "\nTest results:"
-    )
-
-    print(
-        test_result
-    )
-
+    print("\nTest results:")
+    print(test_result)
 
     # ======================================================
     # Finished
     # ======================================================
 
-    print(
-        "\n" + "=" * 70
-    )
-
-    print(
-        "GRU4Rec TRAINING COMPLETE"
-    )
-
-    print(
-        "=" * 70
-    )
+    print("\n" + "=" * 70)
+    print("GRU4Rec TRAINING COMPLETE")
+    print("=" * 70)
 
 
 # ==========================================================
@@ -385,5 +281,4 @@ def train_gru4rec():
 # ==========================================================
 
 if __name__ == "__main__":
-
     train_gru4rec()
