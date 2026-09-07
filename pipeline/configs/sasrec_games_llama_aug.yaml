@@ -5,7 +5,7 @@
 # ----------------------------------------------------------
 # Dataset
 # ----------------------------------------------------------
-dataset: Video_Games_LLama
+dataset: Video_Games_Llama
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
