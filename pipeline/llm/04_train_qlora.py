@@ -699,7 +699,7 @@ def main() -> None:
                 default=0.0,
             )
         ),
-        warmup_ratio=float(
+        warmup_steps=float(
             nested_value(
                 config,
                 "training.warmup_ratio",
