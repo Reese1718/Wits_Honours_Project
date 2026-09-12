@@ -1,0 +1,68 @@
+experiment:
+  name: llama_fashion_qlora
+  dataset: Fashion
+  seed: 42
+
+model:
+  name: meta-llama/Llama-3.2-3B-Instruct
+  trust_remote_code: false
+  attention_implementation: sdpa
+  eos_token: "<|eot_id|>"
+
+data:
+  train_file: datasets/Fashion/processed/llm/sft/train.jsonl
+  validation_file: datasets/Fashion/processed/llm/sft/validation.jsonl
+  preprocessing_workers: 2
+  max_train_samples: null
+  max_validation_samples: null
+  metadata_file: datasets/Fashion/exports/Fashion_metadata_lookup.json
+  catalogue_file: datasets/Fashion/processed/llm/splits/item_catalogue.json
+  validation_split_file: datasets/Fashion/processed/llm/splits/validation.jsonl
+  test_split_file: datasets/Fashion/processed/llm/splits/test.jsonl
+
+quantization:
+  compute_dtype: auto
+  quant_type: nf4
+  use_double_quant: true
+
+lora:
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  target_modules: all-linear
+
+training:
+  output_dir: datasets/Fashion/processed/llm/checkpoints/llama
+  epochs: 3
+
+  train_batch_size: 4
+  eval_batch_size: 4
+  gradient_accumulation_steps: 8
+
+  learning_rate: 0.0002
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  lr_scheduler_type: cosine
+  optimizer: paged_adamw_8bit
+  max_grad_norm: 0.3
+
+  max_sequence_length: 2048
+  gradient_checkpointing: true
+  packing: false
+
+  logging_steps: 10
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: null
+
+  dataloader_workers: 2
+  report_to: none
+
+checkpoint_selection:
+  top_k: 10
+  num_beams: 20
+  batch_size: 4
+  max_validation_users: null
+  exclude_history_items: true
+  length_penalty: 1.0
