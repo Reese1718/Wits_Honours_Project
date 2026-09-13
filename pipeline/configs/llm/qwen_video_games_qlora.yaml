@@ -4,6 +4,7 @@ experiment:
   seed: 42
 
 model:
+  name_or_path: Qwen/Qwen2.5-3B-Instruct
   name: Qwen/Qwen2.5-3B-Instruct
   trust_remote_code: false
   attention_implementation: sdpa
