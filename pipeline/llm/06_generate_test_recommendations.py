@@ -135,6 +135,22 @@ def nested_value(
     return value
 
 
+def dataset_name_from_config(config: dict[str, Any]) -> str:
+    for key in ("experiment.dataset", "dataset.name"):
+        value = nested_value(config, key)
+        if value is not None and value != "":
+            return str(value)
+
+    dataset_value = config.get("dataset")
+    if isinstance(dataset_value, (str, int, float, bool)):
+        return str(dataset_value)
+
+    if isinstance(dataset_value, dict) and dataset_value.get("dataset_name"):
+        return str(dataset_value["dataset_name"])
+
+    return "dataset"
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
@@ -1027,9 +1043,7 @@ def main() -> None:
     config = load_yaml(config_path)
     repository_root = find_repository_root(config_path)
 
-    dataset_name = str(
-        nested_value(config, "dataset.name", default="dataset")
-    )
+    dataset_name = dataset_name_from_config(config)
 
     model_name = nested_value(config, "model.name_or_path")
 

@@ -105,15 +105,17 @@ def resolve_path(
 
 
 def dataset_name_from_config(config: dict[str, Any]) -> str:
+    for key in ("experiment.dataset", "dataset.name"):
+        value = nested_value(config, key)
+        if value is not None and value != "":
+            return str(value)
+
     dataset_value = config.get("dataset")
+    if isinstance(dataset_value, (str, int, float, bool)):
+        return str(dataset_value)
 
-    if isinstance(dataset_value, str):
-        return dataset_value
-
-    if isinstance(dataset_value, dict):
-        for key in ["name", "dataset_name"]:
-            if dataset_value.get(key):
-                return str(dataset_value[key])
+    if isinstance(dataset_value, dict) and dataset_value.get("dataset_name"):
+        return str(dataset_value["dataset_name"])
 
     return "Unknown dataset"
 
