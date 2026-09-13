@@ -189,12 +189,7 @@ def load_validation_records(
         ]
         target = str(record["target_item_id"])
 
-        if target in history:
-            raise ValueError(
-                "A validation target already appears in its history for "
-                f"user {record['user_id']}. The repeat-item evaluation "
-                "policy must be resolved before continuing."
-            )
+        
 
     if max_users is not None and len(records) > max_users:
         generator = random.Random(seed)

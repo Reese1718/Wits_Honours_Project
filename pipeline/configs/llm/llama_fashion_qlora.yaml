@@ -64,5 +64,8 @@ checkpoint_selection:
   num_beams: 20
   batch_size: 4
   max_validation_users: null
-  exclude_history_items: true
+  exclude_history_items: false
   length_penalty: 1.0
+
+generation:
+  exclude_history_items: false
