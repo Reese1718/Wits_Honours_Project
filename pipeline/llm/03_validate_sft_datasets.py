@@ -7,7 +7,8 @@ This script verifies that:
 2. Validation history equals the user's training sequence.
 3. Test history equals the training sequence plus the real validation item.
 4. Validation and test targets occur at the correct chronological positions.
-5. SFT training examples match every expected prefix-to-next-item pair.
+5. SFT training examples match the expected selected prefix-to-next-item
+   pairs, including an optional most-recent-per-user cap.
 6. Validation SFT examples contain the correct held-out target.
 7. Targets are not accidentally inserted into prompts.
 8. Every referenced item belongs to the dataset catalogue.
@@ -63,6 +64,30 @@ def parse_arguments() -> argparse.Namespace:
         "--metadata-file",
         required=True,
         help="Metadata lookup used when building the SFT datasets.",
+    )
+
+    parser.add_argument(
+        "--train-sft-name",
+        default="train.jsonl",
+        help="Training SFT filename within the SFT directory.",
+    )
+
+    parser.add_argument(
+        "--validation-sft-name",
+        default="validation.jsonl",
+        help="Validation SFT filename within the SFT directory.",
+    )
+
+    parser.add_argument(
+        "--sft-summary-name",
+        default="sft_summary.json",
+        help="Step 02 summary filename within the SFT directory.",
+    )
+
+    parser.add_argument(
+        "--report-name",
+        default="validation_report.json",
+        help="Validation report filename within the SFT directory.",
     )
 
     parser.add_argument(
@@ -392,7 +417,7 @@ def validate_temporal_splits(
     return {
         "users": len(train_users),
         "train_interactions": total_train_interactions,
-        "expected_training_examples": expected_training_examples,
+        "available_training_examples": expected_training_examples,
         "validation_examples": len(validation_users),
         "test_examples": len(test_users),
     }
@@ -402,6 +427,7 @@ def expected_training_examples(
     train_records: dict[str, dict[str, Any]],
     metadata_lookup: dict[str, dict[str, Any]],
     max_history_length: int,
+    max_training_examples_per_user: int | None,
 ) -> Iterator[dict[str, Any]]:
     for user_id in sorted(train_records):
         record = train_records[user_id]
@@ -411,7 +437,21 @@ def expected_training_examples(
         ]
         timestamps = record["timestamps"]
 
-        for target_position in range(1, len(item_ids)):
+        available_example_count = len(item_ids) - 1
+        retained_example_count = available_example_count
+
+        if max_training_examples_per_user is not None:
+            retained_example_count = min(
+                available_example_count,
+                max_training_examples_per_user,
+            )
+
+        first_target_position = len(item_ids) - retained_example_count
+
+        for target_position in range(
+            first_target_position,
+            len(item_ids),
+        ):
             complete_history = item_ids[:target_position]
             complete_timestamps = timestamps[:target_position]
 
@@ -579,11 +619,77 @@ def compare_sft_records(
     return record_count
 
 
+def validate_filename(
+    filename: str,
+    expected_suffix: str,
+    argument_name: str,
+) -> str:
+    """Validate that an input/output name is a plain filename."""
+
+    candidate = Path(filename)
+
+    if (
+        not filename
+        or candidate.name != filename
+        or filename in {".", ".."}
+    ):
+        raise ValueError(
+            f"{argument_name} must be a filename without directories."
+        )
+
+    if candidate.suffix.lower() != expected_suffix:
+        raise ValueError(
+            f"{argument_name} must end with {expected_suffix}."
+        )
+
+    return filename
+
+
+def count_selected_training_examples(
+    train_records: dict[str, dict[str, Any]],
+    max_training_examples_per_user: int | None,
+) -> int:
+    """Count expected examples after applying the optional user cap."""
+
+    total = 0
+
+    for record in train_records.values():
+        available = len(record["item_ids"]) - 1
+
+        if max_training_examples_per_user is None:
+            total += available
+        else:
+            total += min(available, max_training_examples_per_user)
+
+    return total
+
+
 def main() -> None:
     args = parse_arguments()
 
     if args.max_errors <= 0:
         raise ValueError("--max-errors must be greater than zero.")
+
+    train_sft_name = validate_filename(
+        args.train_sft_name,
+        expected_suffix=".jsonl",
+        argument_name="--train-sft-name",
+    )
+    validation_sft_name = validate_filename(
+        args.validation_sft_name,
+        expected_suffix=".jsonl",
+        argument_name="--validation-sft-name",
+    )
+    sft_summary_name = validate_filename(
+        args.sft_summary_name,
+        expected_suffix=".json",
+        argument_name="--sft-summary-name",
+    )
+    report_name = validate_filename(
+        args.report_name,
+        expected_suffix=".json",
+        argument_name="--report-name",
+    )
 
     results = ValidationResults(max_errors=args.max_errors)
 
@@ -598,10 +704,10 @@ def main() -> None:
     test_split_path = split_directory / "test.jsonl"
     catalogue_path = split_directory / "item_catalogue.json"
 
-    train_sft_path = sft_directory / "train.jsonl"
-    validation_sft_path = sft_directory / "validation.jsonl"
-    sft_summary_path = sft_directory / "sft_summary.json"
-    report_path = sft_directory / "validation_report.json"
+    train_sft_path = sft_directory / train_sft_name
+    validation_sft_path = sft_directory / validation_sft_name
+    sft_summary_path = sft_directory / sft_summary_name
+    report_path = sft_directory / report_name
 
     required_paths = [
         train_sequences_path,
@@ -633,6 +739,10 @@ def main() -> None:
     print(f"Split directory:  {split_directory}")
     print(f"SFT directory:    {sft_directory}")
     print(f"Metadata file:    {metadata_path}")
+    print(f"Training SFT:     {train_sft_path.name}")
+    print(f"Validation SFT:   {validation_sft_path.name}")
+    print(f"SFT summary:      {sft_summary_path.name}")
+    print(f"Report:           {report_path.name}")
     print()
 
     sft_summary = read_json(sft_summary_path)
@@ -640,7 +750,32 @@ def main() -> None:
         sft_summary["maximum_history_length"]
     )
 
+    raw_example_cap = sft_summary.get(
+        "maximum_training_examples_per_user"
+    )
+    max_training_examples_per_user = (
+        None if raw_example_cap is None else int(raw_example_cap)
+    )
+
+    if max_history_length <= 0:
+        raise ValueError(
+            "SFT summary maximum_history_length must be positive."
+        )
+
+    if (
+        max_training_examples_per_user is not None
+        and max_training_examples_per_user <= 0
+    ):
+        raise ValueError(
+            "SFT summary maximum_training_examples_per_user must be "
+            "positive when provided."
+        )
+
     print(f"Maximum history length: {max_history_length}")
+    print(
+        "Max training examples/user: "
+        f"{max_training_examples_per_user or 'unlimited'}"
+    )
     print("Loading catalogue and temporal split records...")
 
     catalogue_item_ids = load_catalogue(
@@ -705,6 +840,9 @@ def main() -> None:
             train_records=train_records,
             metadata_lookup=metadata_lookup,
             max_history_length=max_history_length,
+            max_training_examples_per_user=(
+                max_training_examples_per_user
+            ),
         ),
         actual_path=train_sft_path,
         results=results,
@@ -723,9 +861,18 @@ def main() -> None:
         results=results,
     )
 
+    expected_selected_training_examples = (
+        count_selected_training_examples(
+            train_records=train_records,
+            max_training_examples_per_user=(
+                max_training_examples_per_user
+            ),
+        )
+    )
+
     results.check(
         actual_training_examples
-        == split_statistics["expected_training_examples"],
+        == expected_selected_training_examples,
         "Actual training example count does not match the expected count.",
     )
 
@@ -734,6 +881,38 @@ def main() -> None:
         == split_statistics["validation_examples"],
         "Actual validation example count does not match the expected count.",
     )
+
+    if "training_examples" in sft_summary:
+        results.check(
+            int(sft_summary["training_examples"])
+            == actual_training_examples,
+            "SFT summary training example count is incorrect.",
+        )
+
+    if "validation_examples" in sft_summary:
+        results.check(
+            int(sft_summary["validation_examples"])
+            == actual_validation_examples,
+            "SFT summary validation example count is incorrect.",
+        )
+
+    if "available_training_examples" in sft_summary:
+        results.check(
+            int(sft_summary["available_training_examples"])
+            == split_statistics["available_training_examples"],
+            "SFT summary available training example count is incorrect.",
+        )
+
+    if "omitted_training_examples" in sft_summary:
+        expected_omitted_examples = (
+            split_statistics["available_training_examples"]
+            - expected_selected_training_examples
+        )
+        results.check(
+            int(sft_summary["omitted_training_examples"])
+            == expected_omitted_examples,
+            "SFT summary omitted training example count is incorrect.",
+        )
 
     report = {
         "dataset": args.dataset,
@@ -744,6 +923,9 @@ def main() -> None:
         "errors": results.errors,
         "warnings": results.warnings,
         "maximum_history_length": max_history_length,
+        "maximum_training_examples_per_user": (
+            max_training_examples_per_user
+        ),
         "catalogue_items": len(catalogue_item_ids),
         "metadata_records": len(metadata_lookup),
         "missing_title_items": missing_title_items,
@@ -751,8 +933,11 @@ def main() -> None:
         "train_interactions": (
             split_statistics["train_interactions"]
         ),
+        "available_training_examples": (
+            split_statistics["available_training_examples"]
+        ),
         "expected_training_examples": (
-            split_statistics["expected_training_examples"]
+            expected_selected_training_examples
         ),
         "actual_training_examples": actual_training_examples,
         "expected_validation_examples": (

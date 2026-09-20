@@ -182,12 +182,33 @@ def load_validation_records(
     if not records:
         raise ValueError("Validation split is empty.")
 
-    for record in records:
-        history = [
-            str(item_id)
-            for item_id in record["history_item_ids"]
-        ]
-        target = str(record["target_item_id"])
+    required_fields = {
+        "user_id",
+        "history_item_ids",
+        "target_item_id",
+    }
+
+    for record_index, record in enumerate(records, start=1):
+        missing_fields = required_fields.difference(record)
+
+        if missing_fields:
+            raise ValueError(
+                f"Validation record {record_index} is missing: "
+                f"{sorted(missing_fields)}"
+            )
+
+        history = record["history_item_ids"]
+
+        if not isinstance(history, list) or not history:
+            raise ValueError(
+                f"Validation record {record_index} must contain a "
+                "non-empty history_item_ids list."
+            )
+
+        if record["target_item_id"] is None:
+            raise ValueError(
+                f"Validation record {record_index} has no target_item_id."
+            )
 
     if max_users is not None and len(records) > max_users:
         generator = random.Random(seed)
@@ -521,9 +542,10 @@ def evaluate_adapter(
             )
 
             prompt_texts.append(prompt_text)
-            blocked_items_by_batch.append(
-                set(model_history)
-            )
+            # The model sees only the most recent items, but ranking must
+            # exclude the user's complete real history. Otherwise an older,
+            # hidden history item could incorrectly be recommended again.
+            blocked_items_by_batch.append(set(history))
 
         model_inputs = tokenizer(
             prompt_texts,
@@ -743,7 +765,18 @@ def main() -> None:
         )
     )
 
-    max_history_length = 50
+    max_history_length = int(
+        nested_value(
+            config,
+            "checkpoint_selection.max_history_length",
+            default=5,
+        )
+    )
+
+    if max_history_length < 1:
+        raise ValueError(
+            "checkpoint_selection.max_history_length must be at least 1."
+        )
 
     if num_beams < top_k:
         raise ValueError(
@@ -773,6 +806,8 @@ def main() -> None:
     print(f"Top K:              {top_k}")
     print(f"Beam width:         {num_beams}")
     print(f"Batch size:         {batch_size}")
+    print(f"Prompt history:     latest {max_history_length} items")
+    print("History exclusion:  complete real history")
     print(f"GPU:                {torch.cuda.get_device_name(0)}")
     print()
 
@@ -972,6 +1007,8 @@ def main() -> None:
         "full_validation_set_used": (
             max_validation_users is None
         ),
+        "max_prompt_history_length": max_history_length,
+        "history_exclusion_scope": "complete_real_history",
         "best_checkpoint": best_result["checkpoint"],
         "best_checkpoint_name": (
             best_result["checkpoint_name"]

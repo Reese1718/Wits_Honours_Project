@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import sys
@@ -139,6 +140,13 @@ def select_compute_dtype(
 def validate_environment() -> dict[str, Any]:
     """Validate CUDA availability and collect hardware information."""
 
+    local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
+    global_rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+
+    if local_rank >= 0:
+        torch.cuda.set_device(local_rank)
+
     if not torch.cuda.is_available():
         raise RuntimeError(
             "CUDA is unavailable. Step 04 must run in a GPU runtime."
@@ -158,6 +166,9 @@ def validate_environment() -> dict[str, Any]:
         "total_memory_bytes": total_memory,
         "total_memory_gib": total_memory / (1024 ** 3),
         "bf16_supported": torch.cuda.is_bf16_supported(),
+        "local_rank": local_rank,
+        "global_rank": global_rank,
+        "world_size": world_size,
     }
 
 
@@ -230,6 +241,8 @@ def load_sft_datasets(
     preprocessing_workers: int,
     max_train_samples: int | None,
     max_validation_samples: int | None,
+    shuffle_before_sampling: bool,
+    seed: int,
 ) -> DatasetDict:
     """Load JSONL files and convert them for completion-only SFT."""
 
@@ -264,6 +277,11 @@ def load_sft_datasets(
             len(datasets["train"]),
         )
 
+        if shuffle_before_sampling:
+            datasets["train"] = datasets["train"].shuffle(
+                seed=seed
+            )
+
         datasets["train"] = datasets["train"].select(
             range(sample_count)
         )
@@ -273,6 +291,11 @@ def load_sft_datasets(
             max_validation_samples,
             len(datasets["validation"]),
         )
+
+        if shuffle_before_sampling:
+            datasets["validation"] = datasets[
+                "validation"
+            ].shuffle(seed=seed)
 
         datasets["validation"] = datasets["validation"].select(
             range(sample_count)
@@ -480,22 +503,45 @@ def main() -> None:
             max_validation_samples
         )
 
-    print("=" * 72)
-    print("QLORA SEQUENTIAL RECOMMENDER TRAINING")
-    print("=" * 72)
-    print(f"Experiment:       {experiment_name}")
-    print(f"Dataset:          {dataset_name}")
-    print(f"Base model:       {model_name}")
-    print(f"GPU:              {hardware['gpu_name']}")
-    print(
-        f"GPU memory:       "
-        f"{hardware['total_memory_gib']:.2f} GiB"
+    if max_train_samples is not None and max_train_samples <= 0:
+        raise ValueError("data.max_train_samples must be positive.")
+
+    if (
+        max_validation_samples is not None
+        and max_validation_samples <= 0
+    ):
+        raise ValueError(
+            "data.max_validation_samples must be positive."
+        )
+
+    shuffle_before_sampling = bool(
+        nested_value(
+            config,
+            "data.shuffle_before_sampling",
+            default=False,
+        )
     )
-    print(f"Compute dtype:    {compute_dtype}")
-    print(f"Training file:    {train_path}")
-    print(f"Validation file:  {validation_path}")
-    print(f"Output directory: {output_directory}")
-    print()
+
+    is_primary_process = hardware["global_rank"] == 0
+
+    if is_primary_process:
+        print("=" * 72)
+        print("QLORA SEQUENTIAL RECOMMENDER TRAINING")
+        print("=" * 72)
+        print(f"Experiment:       {experiment_name}")
+        print(f"Dataset:          {dataset_name}")
+        print(f"Base model:       {model_name}")
+        print(f"GPU:              {hardware['gpu_name']}")
+        print(
+            f"GPU memory:       "
+            f"{hardware['total_memory_gib']:.2f} GiB"
+        )
+        print(f"GPU processes:    {hardware['world_size']}")
+        print(f"Compute dtype:    {compute_dtype}")
+        print(f"Training file:    {train_path}")
+        print(f"Validation file:  {validation_path}")
+        print(f"Output directory: {output_directory}")
+        print()
 
     print("Loading SFT datasets...")
 
@@ -505,6 +551,8 @@ def main() -> None:
         preprocessing_workers=preprocessing_workers,
         max_train_samples=max_train_samples,
         max_validation_samples=max_validation_samples,
+        shuffle_before_sampling=shuffle_before_sampling,
+        seed=seed,
     )
 
     print(f"Training examples:   {len(datasets['train']):,}")
@@ -546,9 +594,7 @@ def main() -> None:
         "dtype": compute_dtype,
         "trust_remote_code": trust_remote_code,
         "low_cpu_mem_usage": True,
-        "device_map": {
-            "": torch.cuda.current_device(),
-        },
+        "device_map": {"": hardware["gpu_index"]},
     }
 
     attention_implementation = nested_value(
@@ -654,37 +700,84 @@ def main() -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = tf32_enabled
 
+    train_batch_size = int(
+        nested_value(
+            config,
+            "training.train_batch_size",
+            default=4,
+        )
+    )
+    eval_batch_size = int(
+        nested_value(
+            config,
+            "training.eval_batch_size",
+            default=4,
+        )
+    )
+    gradient_accumulation_steps = int(
+        nested_value(
+            config,
+            "training.gradient_accumulation_steps",
+            default=8,
+        )
+    )
+    training_epochs = float(
+        nested_value(
+            config,
+            "training.epochs",
+            default=3,
+        )
+    )
+
+    if train_batch_size <= 0 or eval_batch_size <= 0:
+        raise ValueError("Training and evaluation batch sizes must be positive.")
+
+    if gradient_accumulation_steps <= 0:
+        raise ValueError(
+            "training.gradient_accumulation_steps must be positive."
+        )
+
+    if training_epochs <= 0:
+        raise ValueError("training.epochs must be positive.")
+
+    effective_batch_size = (
+        train_batch_size
+        * gradient_accumulation_steps
+        * hardware["world_size"]
+    )
+    batches_per_epoch = math.ceil(
+        len(datasets["train"])
+        / (train_batch_size * hardware["world_size"])
+    )
+    optimizer_steps_per_epoch = math.ceil(
+        batches_per_epoch / gradient_accumulation_steps
+    )
+    estimated_optimizer_steps = math.ceil(
+        optimizer_steps_per_epoch * training_epochs
+    )
+
+    if is_primary_process:
+        print("Training plan:")
+        print(f"  Per-device batch:         {train_batch_size}")
+        print(
+            "  Gradient accumulation:    "
+            f"{gradient_accumulation_steps}"
+        )
+        print(f"  Effective global batch:   {effective_batch_size}")
+        print(f"  Epochs:                   {training_epochs}")
+        print(
+            "  Estimated optimizer steps: "
+            f"{estimated_optimizer_steps:,}"
+        )
+        print()
+
     training_arguments = SFTConfig(
         output_dir=str(output_directory),
         run_name=experiment_name,
-        num_train_epochs=float(
-            nested_value(
-                config,
-                "training.epochs",
-                default=3,
-            )
-        ),
-        per_device_train_batch_size=int(
-            nested_value(
-                config,
-                "training.train_batch_size",
-                default=4,
-            )
-        ),
-        per_device_eval_batch_size=int(
-            nested_value(
-                config,
-                "training.eval_batch_size",
-                default=4,
-            )
-        ),
-        gradient_accumulation_steps=int(
-            nested_value(
-                config,
-                "training.gradient_accumulation_steps",
-                default=8,
-            )
-        ),
+        num_train_epochs=training_epochs,
+        per_device_train_batch_size=train_batch_size,
+        per_device_eval_batch_size=eval_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=float(
             nested_value(
                 config,
@@ -699,7 +792,7 @@ def main() -> None:
                 default=0.0,
             )
         ),
-        warmup_steps=float(
+        warmup_ratio=float(
             nested_value(
                 config,
                 "training.warmup_ratio",
@@ -779,6 +872,9 @@ def main() -> None:
         seed=seed,
         data_seed=seed,
         remove_unused_columns=True,
+        ddp_find_unused_parameters=(
+            False if hardware["world_size"] > 1 else None
+        ),
     )
 
     print("Creating QLoRA trainer...")
@@ -887,10 +983,23 @@ def main() -> None:
         "config": config,
     }
 
-    write_json(
-        run_summary,
-        output_directory / "run_summary.json",
-    )
+    run_summary["training_plan"] = {
+        "world_size": hardware["world_size"],
+        "per_device_train_batch_size": train_batch_size,
+        "gradient_accumulation_steps": (
+            gradient_accumulation_steps
+        ),
+        "effective_global_batch_size": effective_batch_size,
+        "epochs": training_epochs,
+        "estimated_optimizer_steps": estimated_optimizer_steps,
+        "shuffle_before_sampling": shuffle_before_sampling,
+    }
+
+    if trainer.is_world_process_zero():
+        write_json(
+            run_summary,
+            output_directory / "run_summary.json",
+        )
 
     print()
     print("=" * 72)

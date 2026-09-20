@@ -716,17 +716,35 @@ def resolve_selected_checkpoint(
 # Model loading
 # ---------------------------------------------------------------------------
 
-def choose_compute_dtype() -> torch.dtype:
+def choose_compute_dtype(value: str) -> torch.dtype:
     if not torch.cuda.is_available():
         raise RuntimeError(
-            "CUDA was not detected. Step 06 must be run in a Colab GPU "
-            "runtime."
+            "CUDA was not detected. Step 06 must be run on a GPU compute "
+            "node."
         )
 
-    if torch.cuda.is_bf16_supported():
+    requested = value.lower()
+
+    if requested == "auto":
+        if torch.cuda.is_bf16_supported():
+            return torch.bfloat16
+
+        return torch.float16
+
+    if requested in {"bfloat16", "bf16"}:
+        if not torch.cuda.is_bf16_supported():
+            raise RuntimeError(
+                "The selected GPU does not support bfloat16. Use float16."
+            )
+
         return torch.bfloat16
 
-    return torch.float16
+    if requested in {"float16", "fp16"}:
+        return torch.float16
+
+    raise ValueError(
+        "quantization.compute_dtype must be auto, bfloat16, or float16."
+    )
 
 
 def configure_tokenizer(
@@ -767,7 +785,15 @@ def load_model_and_tokenizer(
     checkpoint_path: Path,
     config: dict[str, Any],
 ) -> tuple[PeftModel, AutoTokenizer, torch.dtype]:
-    compute_dtype = choose_compute_dtype()
+    compute_dtype = choose_compute_dtype(
+        str(
+            nested_value(
+                config,
+                "quantization.compute_dtype",
+                default="auto",
+            )
+        )
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
@@ -784,16 +810,28 @@ def load_model_and_tokenizer(
 
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type=str(
+            nested_value(
+                config,
+                "quantization.quant_type",
+                default="nf4",
+            )
+        ),
+        bnb_4bit_use_double_quant=bool(
+            nested_value(
+                config,
+                "quantization.use_double_quant",
+                default=True,
+            )
+        ),
         bnb_4bit_compute_dtype=compute_dtype,
     )
 
     base_model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=quantization_config,
-        device_map="auto",
-        torch_dtype=compute_dtype,
+        device_map={"": torch.cuda.current_device()},
+        dtype=compute_dtype,
         trust_remote_code=bool(
             nested_value(
                 config,
@@ -801,6 +839,12 @@ def load_model_and_tokenizer(
                 default=False,
             )
         ),
+        attn_implementation=nested_value(
+            config,
+            "model.attention_implementation",
+            default="sdpa",
+        ),
+        low_cpu_mem_usage=True,
     )
 
     model = PeftModel.from_pretrained(
@@ -895,7 +939,7 @@ def generate_batch(
         )
 
     beam_count = max(num_beams, top_k)
-    return_sequence_count = beam_count
+    return_sequence_count = top_k
 
     generated = model.generate(
         **encoded,
@@ -1021,7 +1065,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         type=int,
-        default=42,
+        default=None,
+        help="Override experiment.seed from the YAML configuration.",
     )
 
     return parser.parse_args()
@@ -1037,15 +1082,26 @@ def main() -> None:
             f"Configuration file not found: {config_path}"
         )
 
-    random.seed(args.seed)
-    torch.manual_seed(args.seed)
-
     config = load_yaml(config_path)
     repository_root = find_repository_root(config_path)
 
+    seed = (
+        args.seed
+        if args.seed is not None
+        else int(nested_value(config, "experiment.seed", default=42))
+    )
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
     dataset_name = dataset_name_from_config(config)
 
-    model_name = nested_value(config, "model.name_or_path")
+    model_name = nested_value(
+        config,
+        "model.name_or_path",
+        default=nested_value(config, "model.name"),
+    )
 
     if not model_name:
         raise ValueError(
@@ -1165,19 +1221,27 @@ def main() -> None:
     max_history_length = int(
         nested_value(
             config,
-            "data.max_history_length",
-            default=50,
+            "generation.max_history_length",
+            default=nested_value(
+                config,
+                "checkpoint_selection.max_history_length",
+                default=5,
+            ),
         )
     )
 
     maximum_sequence_length = int(
         nested_value(
             config,
-            "training.max_length",
+            "training.max_sequence_length",
             default=nested_value(
                 config,
-                "training.max_seq_length",
-                default=2048,
+                "training.max_length",
+                default=nested_value(
+                    config,
+                    "training.max_seq_length",
+                    default=2048,
+                ),
             ),
         )
     )
@@ -1213,10 +1277,33 @@ def main() -> None:
     if batch_size <= 0:
         raise ValueError("generation.batch_size must be positive.")
 
+    if max_history_length <= 0:
+        raise ValueError(
+            "generation.max_history_length must be positive."
+        )
+
+    if max_new_tokens <= 0:
+        raise ValueError("generation.max_new_tokens must be positive.")
+
     if maximum_input_length <= 0:
         raise ValueError(
             "The configured maximum sequence length must be greater than "
             "generation.max_new_tokens."
+        )
+
+    selection_summary = read_json(selection_file)
+    selected_history_length = selection_summary.get(
+        "max_prompt_history_length"
+    )
+
+    if (
+        selected_history_length is not None
+        and int(selected_history_length) != max_history_length
+    ):
+        raise ValueError(
+            "Step 05 and Step 06 use different prompt-history lengths: "
+            f"Step 05 used {selected_history_length}, but Step 06 is "
+            f"configured for {max_history_length}."
         )
 
     print("=" * 70)
@@ -1231,7 +1318,10 @@ def main() -> None:
     print(f"Top-K:               {top_k}")
     print(f"Beams:               {num_beams}")
     print(f"Batch size:          {batch_size}")
+    print(f"Prompt history:      latest {max_history_length} items")
     print(f"Exclude history:     {exclude_history_items}")
+    if exclude_history_items:
+        print("Exclusion scope:     complete real test history")
     print()
 
     print("Loading test records...")
@@ -1287,8 +1377,12 @@ def main() -> None:
         exist_ok=True,
     )
 
-    if args.overwrite and predictions_file.exists():
-        predictions_file.unlink()
+    if args.overwrite:
+        if predictions_file.exists():
+            predictions_file.unlink()
+
+        if summary_file.exists():
+            summary_file.unlink()
 
     completed_indices = repair_and_read_completed_indices(
         predictions_file
@@ -1423,7 +1517,12 @@ def main() -> None:
             if elapsed_seconds > 0
             else None
         ),
-        "seed": args.seed,
+        "history_exclusion_scope": (
+            "complete_real_history"
+            if exclude_history_items
+            else "none"
+        ),
+        "seed": seed,
         "debug_max_users": args.max_users,
     }
 

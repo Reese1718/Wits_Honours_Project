@@ -3,7 +3,8 @@ Build supervised fine-tuning datasets for the QLoRA recommender.
 
 Training:
     Creates multiple prefix -> next-item examples from each user's
-    training sequence.
+    training sequence. Optionally retains only the most recent N
+    examples per user.
 
 Validation:
     Creates one history -> held-out next-item example per user.
@@ -71,6 +72,36 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         default=50,
         help="Maximum number of recent items included in a prompt.",
+    )
+
+    parser.add_argument(
+        "--max-training-examples-per-user",
+        type=int,
+        default=None,
+        help=(
+            "Optional cap on training examples contributed by each "
+            "user. When set, the most recent examples are retained. "
+            "By default, every eligible prefix-to-next-item example "
+            "is written."
+        ),
+    )
+
+    parser.add_argument(
+        "--train-output-name",
+        default="train.jsonl",
+        help="Training output filename within the output directory.",
+    )
+
+    parser.add_argument(
+        "--validation-output-name",
+        default="validation.jsonl",
+        help="Validation output filename within the output directory.",
+    )
+
+    parser.add_argument(
+        "--summary-output-name",
+        default="sft_summary.json",
+        help="Summary output filename within the output directory.",
     )
 
     parser.add_argument(
@@ -179,6 +210,7 @@ def iter_training_examples(
     train_path: Path,
     metadata_lookup: dict[str, dict[str, Any]],
     max_history_length: int,
+    max_training_examples_per_user: int | None,
     statistics: dict[str, int],
 ) -> Iterator[dict[str, Any]]:
     """
@@ -219,7 +251,36 @@ def iter_training_examples(
 
         statistics["training_users"] += 1
 
-        for target_position in range(1, len(item_ids)):
+        available_example_count = len(item_ids) - 1
+        statistics["available_training_examples"] += (
+            available_example_count
+        )
+
+        first_target_position = 1
+
+        if max_training_examples_per_user is not None:
+            retained_example_count = min(
+                available_example_count,
+                max_training_examples_per_user,
+            )
+            first_target_position = (
+                len(item_ids) - retained_example_count
+            )
+
+            omitted_example_count = (
+                available_example_count - retained_example_count
+            )
+            statistics["omitted_training_examples"] += (
+                omitted_example_count
+            )
+
+            if omitted_example_count:
+                statistics["users_capped"] += 1
+
+        for target_position in range(
+            first_target_position,
+            len(item_ids),
+        ):
             full_history = item_ids[:target_position]
             full_history_timestamps = timestamps[:target_position]
 
@@ -360,6 +421,32 @@ def check_existing_outputs(
         )
 
 
+def validate_output_filename(
+    filename: str,
+    expected_suffix: str,
+    argument_name: str,
+) -> str:
+    """Validate that an output name is a plain filename of the right type."""
+
+    candidate = Path(filename)
+
+    if (
+        not filename
+        or candidate.name != filename
+        or filename in {".", ".."}
+    ):
+        raise ValueError(
+            f"{argument_name} must be a filename without directories."
+        )
+
+    if candidate.suffix.lower() != expected_suffix:
+        raise ValueError(
+            f"{argument_name} must end with {expected_suffix}."
+        )
+
+    return filename
+
+
 def main() -> None:
     args = parse_arguments()
 
@@ -367,6 +454,31 @@ def main() -> None:
         raise ValueError(
             "--max-history-length must be greater than zero."
         )
+
+    if (
+        args.max_training_examples_per_user is not None
+        and args.max_training_examples_per_user <= 0
+    ):
+        raise ValueError(
+            "--max-training-examples-per-user must be greater than "
+            "zero when provided."
+        )
+
+    train_output_name = validate_output_filename(
+        args.train_output_name,
+        expected_suffix=".jsonl",
+        argument_name="--train-output-name",
+    )
+    validation_output_name = validate_output_filename(
+        args.validation_output_name,
+        expected_suffix=".jsonl",
+        argument_name="--validation-output-name",
+    )
+    summary_output_name = validate_output_filename(
+        args.summary_output_name,
+        expected_suffix=".json",
+        argument_name="--summary-output-name",
+    )
 
     split_directory = resolve_project_path(args.split_dir)
     metadata_path = resolve_project_path(args.metadata_file)
@@ -402,9 +514,9 @@ def main() -> None:
 
     output_directory.mkdir(parents=True, exist_ok=True)
 
-    train_output = output_directory / "train.jsonl"
-    validation_output = output_directory / "validation.jsonl"
-    summary_output = output_directory / "sft_summary.json"
+    train_output = output_directory / train_output_name
+    validation_output = output_directory / validation_output_name
+    summary_output = output_directory / summary_output_name
 
     check_existing_outputs(
         [train_output, validation_output, summary_output],
@@ -419,6 +531,13 @@ def main() -> None:
     print(f"Metadata file:      {metadata_path}")
     print(f"Output directory:   {output_directory}")
     print(f"Max history length: {args.max_history_length}")
+    print(
+        "Max train examples/user: "
+        f"{args.max_training_examples_per_user or 'unlimited'}"
+    )
+    print(f"Training output:    {train_output.name}")
+    print(f"Validation output:  {validation_output.name}")
+    print(f"Summary output:     {summary_output.name}")
     print()
 
     print("Loading metadata and checking catalogue coverage...")
@@ -461,7 +580,10 @@ def main() -> None:
     statistics: dict[str, Any] = {
         "dataset": args.dataset,
         "training_users": 0,
+        "available_training_examples": 0,
         "training_examples": 0,
+        "omitted_training_examples": 0,
+        "users_capped": 0,
         "validation_examples": 0,
         "truncated_training_examples": 0,
         "truncated_validation_examples": 0,
@@ -474,6 +596,9 @@ def main() -> None:
             train_path=train_path,
             metadata_lookup=metadata_lookup,
             max_history_length=args.max_history_length,
+            max_training_examples_per_user=(
+                args.max_training_examples_per_user
+            ),
             statistics=statistics,
         ),
         train_output,
@@ -496,6 +621,9 @@ def main() -> None:
         "format": "chat_supervised_fine_tuning",
         "target_format": "exact_item_id",
         "maximum_history_length": args.max_history_length,
+        "maximum_training_examples_per_user": (
+            args.max_training_examples_per_user
+        ),
         "catalogue_items": len(catalogue_item_ids),
         "metadata_records": len(metadata_lookup),
         "items_with_titles": (
@@ -504,7 +632,14 @@ def main() -> None:
         "items_missing_titles": len(missing_metadata),
         "metadata_coverage": metadata_coverage,
         "training_users": statistics["training_users"],
+        "available_training_examples": (
+            statistics["available_training_examples"]
+        ),
         "training_examples": statistics["training_examples"],
+        "omitted_training_examples": (
+            statistics["omitted_training_examples"]
+        ),
+        "users_capped": statistics["users_capped"],
         "validation_examples": statistics["validation_examples"],
         "truncated_training_examples": (
             statistics["truncated_training_examples"]
@@ -531,8 +666,20 @@ def main() -> None:
         f"{statistics['training_users']:,}"
     )
     print(
+        f"Available training examples:   "
+        f"{statistics['available_training_examples']:,}"
+    )
+    print(
         f"Training examples:             "
         f"{statistics['training_examples']:,}"
+    )
+    print(
+        f"Omitted training examples:     "
+        f"{statistics['omitted_training_examples']:,}"
+    )
+    print(
+        f"Users affected by cap:         "
+        f"{statistics['users_capped']:,}"
     )
     print(
         f"Validation examples:           "
