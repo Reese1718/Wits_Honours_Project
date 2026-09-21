@@ -7,7 +7,7 @@
 # ----------------------------------------------------------
 
 dataset: Video_Games_Qwen
-data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
+data_path: /content/
 
 USER_ID_FIELD: user_id
 ITEM_ID_FIELD: item_id
@@ -48,7 +48,8 @@ loss_type: CE
 # Training
 # ----------------------------------------------------------
 
-epochs: 30
+# Diagnostic run first
+epochs: 8
 
 train_batch_size: 128
 eval_batch_size: 128

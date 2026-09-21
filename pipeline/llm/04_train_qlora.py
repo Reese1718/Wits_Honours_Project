@@ -792,11 +792,14 @@ def main() -> None:
                 default=0.0,
             )
         ),
-        warmup_ratio=float(
-            nested_value(
-                config,
-                "training.warmup_ratio",
-                default=0.03,
+        warmup_steps=math.ceil(
+            estimated_optimizer_steps
+            * float(
+                nested_value(
+                    config,
+                    "training.warmup_ratio",
+                    default=0.03,
+                )
             )
         ),
         lr_scheduler_type=str(
