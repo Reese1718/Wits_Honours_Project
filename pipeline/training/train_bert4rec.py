@@ -1,5 +1,18 @@
 import os
 import sys
+
+import numpy as np
+
+# RecBole 1.2.0 compatibility with NumPy 2.x
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+if not hasattr(np, "int_"):
+    np.int_ = np.int64
+if not hasattr(np, "complex_"):
+    np.complex_ = np.complex128
+if not hasattr(np, "unicode_"):
+    np.unicode_ = np.str_
+    
 import time
 import threading
 
