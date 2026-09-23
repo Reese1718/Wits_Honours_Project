@@ -49,10 +49,10 @@ loss_type: CE
 # ----------------------------------------------------------
 
 # Diagnostic run first
-epochs: 8
+epochs: 20
 
-train_batch_size: 128
-eval_batch_size: 128
+train_batch_size: 512
+eval_batch_size: 512
 
 learning_rate: 0.00001
 
@@ -65,11 +65,11 @@ clip_grad_norm:
   max_norm: 1.0
   norm_type: 2
 
-enable_amp: False
-enable_scaler: False
+enable_amp: True
+enable_scaler: True
 
 # Prevent additional DataLoader processes from consuming RAM
-worker: 0
+worker: 2
 
 # ----------------------------------------------------------
 # Reproducibility
