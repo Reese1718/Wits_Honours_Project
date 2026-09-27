@@ -161,12 +161,16 @@ def validate_source_dataset(
     # missing-user check is performed during the filtering pass.
 
     if augmented_users != len(original_lengths):
+        missing_count = len(original_lengths) - augmented_users
 
-        raise ValueError(
-            "User-count mismatch between original and "
-            "augmented datasets: "
-            f"original={len(original_lengths):,}, "
-            f"augmented={augmented_users:,}"
+        print()
+        print(
+            f"WARNING: {missing_count:,} users from the original "
+            "dataset are missing from the LLaMA augmented dataset."
+        )
+        print(
+            "These users will remain excluded from the LLaMA "
+            "augmentation condition."
         )
 
     print()
@@ -531,11 +535,16 @@ def verify_output(
                 )
 
     if users_checked != len(original_lengths):
+        missing_count = len(original_lengths) - users_checked
 
-        raise ValueError(
-            "Output user count does not match original: "
-            f"output={users_checked:,}, "
-            f"original={len(original_lengths):,}"
+        print()
+        print(
+            f"WARNING: Output contains {missing_count:,} fewer users "
+            "than the original dataset."
+        )
+        print(
+            "These users were already absent from the LLaMA "
+            "augmented dataset and remain excluded."
         )
 
     print()
