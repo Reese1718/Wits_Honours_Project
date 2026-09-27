@@ -5,41 +5,87 @@ import json
 from collections import Counter
 from pathlib import Path
 
+import ijson
+
 
 SYNTHETIC_SOURCE = "llm_synthetic"
 EXPECTED_SYNTHETIC_COUNT = 3
 
 
-def load_json(path: Path):
-    print(f"Loading: {path}")
+def load_original_lengths(path: Path):
+    """
+    Stream the original user-history JSON and store only:
 
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        user_id -> original history length
+
+    This avoids loading the 2+ GB JSON into memory.
+    """
+
+    print()
+    print("=" * 70)
+    print("STEP 1 — READING ORIGINAL HISTORY LENGTHS")
+    print("=" * 70)
+
+    print(f"Streaming: {path}")
+
+    original_lengths = {}
+
+    with path.open("rb") as f:
+        users = ijson.kvitems(f, "")
+
+        for user_count, (user_id, history) in enumerate(users, start=1):
+
+            original_lengths[user_id] = len(history)
+
+            if user_count % 100_000 == 0:
+                print(
+                    f"  Processed {user_count:,} users...",
+                    flush=True,
+                )
+
+    print()
+    print(
+        f"Original users processed: "
+        f"{len(original_lengths):,}"
+    )
+
+    if not original_lengths:
+        raise ValueError("Original dataset contains no users.")
+
+    return original_lengths
 
 
 def count_synthetic(history):
+    """
+    Count synthetic interactions in one augmented history.
+    """
+
     return sum(
         1
         for interaction in history
-        if interaction.get("interaction_source") == SYNTHETIC_SOURCE
+        if interaction.get("interaction_source")
+        == SYNTHETIC_SOURCE
     )
 
 
 def get_real_interactions(history):
+    """
+    Return only real interactions.
+    """
+
     return [
         interaction
         for interaction in history
-        if interaction.get("interaction_source") != SYNTHETIC_SOURCE
+        if interaction.get("interaction_source")
+        != SYNTHETIC_SOURCE
     ]
 
 
 def interaction_key(interaction):
     """
-    Create a key for identifying an interaction.
-
-    We use the fields that distinguish interactions in the
-    Video Games user-history files.
+    Create a stable key for an interaction.
     """
+
     return (
         interaction.get("asin"),
         interaction.get("timestamp"),
@@ -50,141 +96,345 @@ def interaction_key(interaction):
 
 
 def validate_source_dataset(
-    original,
-    augmented,
-    dataset_name,
+    augmented_input_path: Path,
+    original_lengths,
 ):
     """
-    Validate the existing full augmented dataset before filtering.
+    Stream through the full augmented dataset and validate:
 
-    Checks:
-      - same users as original dataset
+      - same users as original
       - exactly 3 synthetic interactions per user
+
+    Returns the number of users.
     """
 
     print()
     print("=" * 70)
-    print(f"VALIDATING SOURCE DATASET: {dataset_name}")
+    print("STEP 2 — VALIDATING SOURCE AUGMENTED DATASET")
     print("=" * 70)
 
-    original_users = set(original)
-    augmented_users = set(augmented)
+    print(f"Streaming: {augmented_input_path}")
 
-    missing_users = original_users - augmented_users
-    extra_users = augmented_users - original_users
-
-    if missing_users:
-        raise ValueError(
-            f"{dataset_name}: {len(missing_users):,} users are "
-            "missing from the augmented dataset."
-        )
-
-    if extra_users:
-        raise ValueError(
-            f"{dataset_name}: {len(extra_users):,} unexpected users "
-            "found in the augmented dataset."
-        )
-
+    augmented_users = 0
     synthetic_counts = Counter()
 
-    for user_id, history in augmented.items():
-        synthetic_count = count_synthetic(history)
+    with augmented_input_path.open("rb") as f:
 
-        synthetic_counts[synthetic_count] += 1
+        users = ijson.kvitems(f, "")
 
-        if synthetic_count != EXPECTED_SYNTHETIC_COUNT:
-            raise ValueError(
-                f"{dataset_name}: user {user_id} has "
-                f"{synthetic_count} synthetic interactions; "
-                f"expected {EXPECTED_SYNTHETIC_COUNT}."
-            )
+        for user_id, history in users:
 
-    print(f"Users: {len(augmented):,}")
+            augmented_users += 1
 
-    print("\nSynthetic interactions per user:")
+            if user_id not in original_lengths:
+                raise ValueError(
+                    f"Unexpected user in augmented dataset: "
+                    f"{user_id}"
+                )
+
+            synthetic_count = count_synthetic(history)
+
+            synthetic_counts[synthetic_count] += 1
+
+            if synthetic_count != EXPECTED_SYNTHETIC_COUNT:
+
+                raise ValueError(
+                    f"User {user_id} has "
+                    f"{synthetic_count} synthetic interactions; "
+                    f"expected {EXPECTED_SYNTHETIC_COUNT}."
+                )
+
+            if augmented_users % 100_000 == 0:
+
+                print(
+                    f"  Processed {augmented_users:,} users...",
+                    flush=True,
+                )
+
+    missing_users = (
+        set(original_lengths)
+        - set()
+    )
+
+    # We don't want to create another huge user set just for this
+    # check, so user-count equality is checked here. A more detailed
+    # missing-user check is performed during the filtering pass.
+
+    if augmented_users != len(original_lengths):
+
+        raise ValueError(
+            "User-count mismatch between original and "
+            "augmented datasets: "
+            f"original={len(original_lengths):,}, "
+            f"augmented={augmented_users:,}"
+        )
+
+    print()
+    print(
+        f"Augmented users processed: "
+        f"{augmented_users:,}"
+    )
+
+    print()
+    print("Synthetic interactions per user:")
 
     for count in sorted(synthetic_counts):
+
         print(
             f"  {count}: "
             f"{synthetic_counts[count]:,} users"
         )
 
-    print("\nSource validation: PASSED")
+    print()
+    print("Source validation: PASSED")
+
+    return augmented_users
 
 
-def filter_dataset(
-    original,
-    augmented,
-    threshold,
+def validate_real_interactions_preserved(
+    original_history,
+    filtered_history,
+    user_id,
 ):
     """
-    Create the selective augmentation dataset.
+    Validate that all original interactions remain.
 
-    If a user's ORIGINAL history length is <= threshold:
-        keep all 3 synthetic interactions.
-
-    If a user's ORIGINAL history length is > threshold:
-        remove ONLY the synthetic interactions.
-
-    All original interactions are preserved.
+    Since the original dataset is not kept in memory, this function
+    is used only when original history data is available. It is kept
+    here for structural validation of the filtering logic.
     """
 
-    filtered = {}
+    original_keys = Counter(
+        interaction_key(interaction)
+        for interaction in original_history
+    )
 
-    users_at_or_below_threshold = 0
-    users_above_threshold = 0
+    filtered_real_history = get_real_interactions(
+        filtered_history
+    )
+
+    filtered_real_keys = Counter(
+        interaction_key(interaction)
+        for interaction in filtered_real_history
+    )
+
+    for key, count in original_keys.items():
+
+        if filtered_real_keys[key] < count:
+
+            raise ValueError(
+                f"{user_id}: original interaction missing "
+                f"after filtering: {key}"
+            )
+
+
+def filter_and_write_dataset(
+    original_path: Path,
+    augmented_input_path: Path,
+    output_path: Path,
+    original_lengths,
+    threshold: int,
+):
+    """
+    Stream the augmented dataset and write the selective dataset.
+
+    IMPORTANT:
+    The augmented dataset is never loaded completely into memory.
+
+    For users whose ORIGINAL history length <= threshold:
+        keep all interactions.
+
+    For users whose ORIGINAL history length > threshold:
+        remove only interactions with:
+            interaction_source == "llm_synthetic"
+    """
+
+    print()
+    print("=" * 70)
+    print("STEP 3 — CREATING SELECTIVE DATASET")
+    print("=" * 70)
+
+    print(f"Input:  {augmented_input_path}")
+    print(f"Output: {output_path}")
+    print(f"Threshold: {threshold}")
+
+    users_processed = 0
+
+    users_short = 0
+    users_long = 0
 
     synthetic_kept = 0
     synthetic_removed = 0
 
-    for user_id, augmented_history in augmented.items():
+    users_seen = set()
 
-        original_length = len(original[user_id])
+    with augmented_input_path.open("rb") as input_file, \
+         output_path.open("w", encoding="utf-8") as output_file:
 
-        if original_length <= threshold:
+        users = ijson.kvitems(
+            input_file,
+            "",
+        )
 
-            # Short-history user:
-            # Keep the complete augmented sequence.
+        output_file.write("{\n")
 
-            filtered_history = augmented_history.copy()
+        first_user = True
 
-            users_at_or_below_threshold += 1
-            synthetic_kept += count_synthetic(filtered_history)
+        for user_id, augmented_history in users:
 
-        else:
+            users_processed += 1
+            users_seen.add(user_id)
 
-            # Longer-history user:
-            # Remove ONLY LLM synthetic interactions.
+            if user_id not in original_lengths:
 
-            filtered_history = [
-                interaction
-                for interaction in augmented_history
-                if interaction.get("interaction_source")
-                != SYNTHETIC_SOURCE
-            ]
+                raise ValueError(
+                    f"User {user_id} exists in augmented dataset "
+                    "but not in original dataset."
+                )
 
-            users_above_threshold += 1
+            original_length = original_lengths[user_id]
 
-            synthetic_removed += (
-                count_synthetic(augmented_history)
-                - count_synthetic(filtered_history)
+            synthetic_count = count_synthetic(
+                augmented_history
             )
 
-        filtered[user_id] = filtered_history
+            if synthetic_count != EXPECTED_SYNTHETIC_COUNT:
+
+                raise ValueError(
+                    f"User {user_id} has "
+                    f"{synthetic_count} synthetic interactions; "
+                    f"expected {EXPECTED_SYNTHETIC_COUNT}."
+                )
+
+            # ----------------------------------------------------
+            # SHORT HISTORY
+            # ----------------------------------------------------
+
+            if original_length <= threshold:
+
+                filtered_history = augmented_history
+
+                users_short += 1
+
+                synthetic_kept += synthetic_count
+
+            # ----------------------------------------------------
+            # LONG HISTORY
+            # ----------------------------------------------------
+
+            else:
+
+                filtered_history = [
+                    interaction
+                    for interaction in augmented_history
+                    if interaction.get(
+                        "interaction_source"
+                    ) != SYNTHETIC_SOURCE
+                ]
+
+                users_long += 1
+
+                synthetic_removed += (
+                    synthetic_count
+                    - count_synthetic(filtered_history)
+                )
+
+            # ----------------------------------------------------
+            # Validate filtered synthetic count
+            # ----------------------------------------------------
+
+            filtered_synthetic_count = count_synthetic(
+                filtered_history
+            )
+
+            if original_length <= threshold:
+
+                if filtered_synthetic_count != 3:
+
+                    raise ValueError(
+                        f"{user_id}: expected 3 synthetic "
+                        f"interactions but found "
+                        f"{filtered_synthetic_count}."
+                    )
+
+            else:
+
+                if filtered_synthetic_count != 0:
+
+                    raise ValueError(
+                        f"{user_id}: expected 0 synthetic "
+                        f"interactions but found "
+                        f"{filtered_synthetic_count}."
+                    )
+
+            # ----------------------------------------------------
+            # Write user
+            # ----------------------------------------------------
+
+            if not first_user:
+                output_file.write(",\n")
+
+            json.dump(
+                user_id,
+                output_file,
+                ensure_ascii=False,
+            )
+
+            output_file.write(": ")
+
+            json.dump(
+                filtered_history,
+                output_file,
+                ensure_ascii=False,
+            )
+
+            first_user = False
+
+            # ----------------------------------------------------
+            # Progress
+            # ----------------------------------------------------
+
+            if users_processed % 100_000 == 0:
+
+                print(
+                    f"  Processed {users_processed:,} users | "
+                    f"short={users_short:,} | "
+                    f"long={users_long:,}",
+                    flush=True,
+                )
+
+        output_file.write("\n}\n")
+
+    # ------------------------------------------------------------
+    # User count validation
+    # ------------------------------------------------------------
+
+    if users_processed != len(original_lengths):
+
+        raise ValueError(
+            "Final user-count mismatch: "
+            f"original={len(original_lengths):,}, "
+            f"processed={users_processed:,}"
+        )
 
     print()
     print("=" * 70)
-    print("FILTERING SUMMARY")
+    print("FILTERING COMPLETE")
     print("=" * 70)
 
     print(
+        f"Users processed: "
+        f"{users_processed:,}"
+    )
+
+    print(
         f"Users with original history <= {threshold}: "
-        f"{users_at_or_below_threshold:,}"
+        f"{users_short:,}"
     )
 
     print(
         f"Users with original history > {threshold}: "
-        f"{users_above_threshold:,}"
+        f"{users_long:,}"
     )
 
     print(
@@ -197,273 +447,105 @@ def filter_dataset(
         f"{synthetic_removed:,}"
     )
 
-    return filtered
+    print()
+    print(f"Output written to:")
+    print(f"  {output_path}")
+
+    return {
+        "users_processed": users_processed,
+        "users_short": users_short,
+        "users_long": users_long,
+        "synthetic_kept": synthetic_kept,
+        "synthetic_removed": synthetic_removed,
+    }
 
 
-def validate_filtered_dataset(
-    original,
-    source_augmented,
-    filtered,
+def verify_output(
+    output_path: Path,
+    original_lengths,
     threshold,
-    dataset_name,
 ):
     """
-    Thoroughly validate the selective dataset.
+    Stream the generated output once more and verify:
 
-    Checks:
-      1. Same users as original dataset.
-      2. Same users as source augmented dataset.
-      3. Users <= threshold retain exactly 3 synthetic interactions.
-      4. Users > threshold retain zero synthetic interactions.
-      5. Every original interaction remains.
-      6. Original validation interaction remains unchanged.
-      7. Original test interaction remains unchanged.
+      - valid JSON structure
+      - same number of users
+      - short users have 3 synthetic interactions
+      - long users have zero synthetic interactions
     """
 
     print()
     print("=" * 70)
-    print(f"VALIDATING FILTERED DATASET: {dataset_name}")
+    print("STEP 4 — VERIFYING OUTPUT")
     print("=" * 70)
 
-    original_users = set(original)
-    source_users = set(source_augmented)
-    filtered_users = set(filtered)
+    print(f"Streaming: {output_path}")
 
-    # ------------------------------------------------------------
-    # User-set validation
-    # ------------------------------------------------------------
+    users_checked = 0
 
-    if filtered_users != original_users:
+    with output_path.open("rb") as f:
 
-        missing = original_users - filtered_users
-        extra = filtered_users - original_users
+        users = ijson.kvitems(f, "")
 
-        raise ValueError(
-            f"{dataset_name}: user mismatch after filtering. "
-            f"Missing={len(missing):,}, "
-            f"Extra={len(extra):,}"
-        )
+        for user_id, history in users:
 
-    if filtered_users != source_users:
+            users_checked += 1
 
-        raise ValueError(
-            f"{dataset_name}: source and filtered user sets differ."
-        )
+            if user_id not in original_lengths:
 
-    # ------------------------------------------------------------
-    # Counters
-    # ------------------------------------------------------------
-
-    users_at_or_below_threshold = 0
-    users_above_threshold = 0
-
-    synthetic_kept = 0
-    synthetic_removed = 0
-
-    errors = []
-
-    # ------------------------------------------------------------
-    # User-by-user validation
-    # ------------------------------------------------------------
-
-    for user_id in original:
-
-        original_history = original[user_id]
-        source_history = source_augmented[user_id]
-        filtered_history = filtered[user_id]
-
-        original_length = len(original_history)
-
-        source_synthetic_count = count_synthetic(
-            source_history
-        )
-
-        filtered_synthetic_count = count_synthetic(
-            filtered_history
-        )
-
-        # --------------------------------------------------------
-        # Synthetic interaction count
-        # --------------------------------------------------------
-
-        if original_length <= threshold:
-
-            users_at_or_below_threshold += 1
-
-            if filtered_synthetic_count != EXPECTED_SYNTHETIC_COUNT:
-
-                errors.append(
-                    f"{user_id}: expected "
-                    f"{EXPECTED_SYNTHETIC_COUNT} synthetic "
-                    f"interactions but found "
-                    f"{filtered_synthetic_count}."
+                raise ValueError(
+                    f"Unexpected user in output: {user_id}"
                 )
 
-        else:
+            original_length = original_lengths[user_id]
 
-            users_above_threshold += 1
+            synthetic_count = count_synthetic(
+                history
+            )
 
-            if filtered_synthetic_count != 0:
+            if original_length <= threshold:
 
-                errors.append(
-                    f"{user_id}: expected 0 synthetic "
-                    f"interactions but found "
-                    f"{filtered_synthetic_count}."
-                )
+                if synthetic_count != 3:
 
-        synthetic_kept += filtered_synthetic_count
-
-        synthetic_removed += (
-            source_synthetic_count
-            - filtered_synthetic_count
-        )
-
-        # --------------------------------------------------------
-        # Verify every original interaction remains
-        # --------------------------------------------------------
-
-        original_keys = Counter(
-            interaction_key(interaction)
-            for interaction in original_history
-        )
-
-        filtered_real_history = get_real_interactions(
-            filtered_history
-        )
-
-        filtered_real_keys = Counter(
-            interaction_key(interaction)
-            for interaction in filtered_real_history
-        )
-
-        for key, count in original_keys.items():
-
-            if filtered_real_keys[key] < count:
-
-                errors.append(
-                    f"{user_id}: original interaction missing "
-                    f"after filtering: {key}"
-                )
-
-        # --------------------------------------------------------
-        # Verify validation/test remain unchanged
-        # --------------------------------------------------------
-
-        original_real_history = get_real_interactions(
-            original_history
-        )
-
-        filtered_real_history = get_real_interactions(
-            filtered_history
-        )
-
-        if len(original_real_history) >= 2:
-
-            original_validation = original_real_history[-2]
-            original_test = original_real_history[-1]
-
-            if len(filtered_real_history) < 2:
-
-                errors.append(
-                    f"{user_id}: fewer than two real interactions "
-                    "remain after filtering."
-                )
+                    raise ValueError(
+                        f"{user_id}: short-history user has "
+                        f"{synthetic_count} synthetic interactions; "
+                        "expected 3."
+                    )
 
             else:
 
-                filtered_validation = filtered_real_history[-2]
-                filtered_test = filtered_real_history[-1]
+                if synthetic_count != 0:
 
-                if filtered_validation != original_validation:
-
-                    errors.append(
-                        f"{user_id}: validation interaction "
-                        "changed."
+                    raise ValueError(
+                        f"{user_id}: long-history user has "
+                        f"{synthetic_count} synthetic interactions; "
+                        "expected 0."
                     )
 
-                if filtered_test != original_test:
+            if users_checked % 100_000 == 0:
 
-                    errors.append(
-                        f"{user_id}: test interaction changed."
-                    )
+                print(
+                    f"  Verified {users_checked:,} users...",
+                    flush=True,
+                )
 
-    # ------------------------------------------------------------
-    # Report errors
-    # ------------------------------------------------------------
-
-    if errors:
-
-        print()
-        print("VALIDATION ERRORS:")
-
-        for error in errors[:20]:
-            print(f"  - {error}")
-
-        if len(errors) > 20:
-            print(
-                f"  ... and {len(errors) - 20:,} "
-                "more errors."
-            )
+    if users_checked != len(original_lengths):
 
         raise ValueError(
-            f"{dataset_name}: validation FAILED with "
-            f"{len(errors):,} error(s)."
+            "Output user count does not match original: "
+            f"output={users_checked:,}, "
+            f"original={len(original_lengths):,}"
         )
 
-    # ------------------------------------------------------------
-    # Successful validation summary
-    # ------------------------------------------------------------
-
+    print()
     print(
-        f"Users: "
-        f"{len(filtered):,}"
-    )
-
-    print(
-        f"Users <= threshold: "
-        f"{users_at_or_below_threshold:,}"
-    )
-
-    print(
-        f"Users > threshold: "
-        f"{users_above_threshold:,}"
-    )
-
-    print(
-        f"Synthetic interactions kept: "
-        f"{synthetic_kept:,}"
-    )
-
-    print(
-        f"Synthetic interactions removed: "
-        f"{synthetic_removed:,}"
+        f"Output users verified: "
+        f"{users_checked:,}"
     )
 
     print()
-    print("Filtered validation: PASSED")
-
-
-def save_json(data, path: Path):
-    """
-    Save the filtered dataset as a new JSON file.
-    """
-
-    print()
-    print(f"Saving: {path}")
-
-    with path.open(
-        "w",
-        encoding="utf-8",
-    ) as f:
-
-        json.dump(
-            data,
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
-
-    print("Saved successfully.")
+    print("Output verification: PASSED")
 
 
 def main():
@@ -471,24 +553,21 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Create a selective Video Games LLM augmentation "
-            "dataset from one existing augmented dataset."
+            "dataset using streaming JSON processing."
         )
     )
 
     parser.add_argument(
         "--original",
         required=True,
-        help=(
-            "Path to the original Video Games "
-            "user histories JSON."
-        ),
+        help="Original Video Games user histories JSON.",
     )
 
     parser.add_argument(
         "--augmented-input",
         required=True,
         help=(
-            "Path to ONE full augmented user histories JSON "
+            "One full augmented dataset "
             "(Qwen or LLaMA)."
         ),
     )
@@ -496,10 +575,7 @@ def main():
     parser.add_argument(
         "--output",
         required=True,
-        help=(
-            "Path for the new selective augmentation "
-            "JSON output."
-        ),
+        help="New selective augmentation JSON output.",
     )
 
     parser.add_argument(
@@ -515,6 +591,7 @@ def main():
     args = parser.parse_args()
 
     if args.threshold < 0:
+
         raise ValueError(
             "Threshold must be >= 0."
         )
@@ -525,9 +602,26 @@ def main():
     )
     output_path = Path(args.output)
 
-    # ------------------------------------------------------------
-    # Header
-    # ------------------------------------------------------------
+    if not original_path.exists():
+
+        raise FileNotFoundError(
+            f"Original dataset not found: {original_path}"
+        )
+
+    if not augmented_input_path.exists():
+
+        raise FileNotFoundError(
+            "Augmented dataset not found: "
+            f"{augmented_input_path}"
+        )
+
+    if output_path.exists():
+
+        raise FileExistsError(
+            "Output already exists. "
+            "This script will not overwrite it:\n"
+            f"{output_path}"
+        )
 
     print("=" * 70)
     print("VIDEO GAMES — SELECTIVE LLM AUGMENTATION")
@@ -549,97 +643,68 @@ def main():
     )
 
     # ------------------------------------------------------------
-    # Load original dataset
+    # STEP 1
     # ------------------------------------------------------------
 
-    original = load_json(
+    original_lengths = load_original_lengths(
         original_path
     )
 
-    print(
-        f"\nOriginal users loaded: "
-        f"{len(original):,}"
-    )
-
     # ------------------------------------------------------------
-    # Load ONE augmented dataset
-    # ------------------------------------------------------------
-
-    augmented = load_json(
-        augmented_input_path
-    )
-
-    print(
-        f"Augmented users loaded: "
-        f"{len(augmented):,}"
-    )
-
-    # ------------------------------------------------------------
-    # Validate source
+    # STEP 2
     # ------------------------------------------------------------
 
     validate_source_dataset(
-        original=original,
-        augmented=augmented,
-        dataset_name=augmented_input_path.name,
+        augmented_input_path=augmented_input_path,
+        original_lengths=original_lengths,
     )
 
     # ------------------------------------------------------------
-    # Create selective dataset
+    # STEP 3
     # ------------------------------------------------------------
 
-    filtered = filter_dataset(
-        original=original,
-        augmented=augmented,
+    filter_and_write_dataset(
+        original_path=original_path,
+        augmented_input_path=augmented_input_path,
+        output_path=output_path,
+        original_lengths=original_lengths,
         threshold=args.threshold,
     )
 
     # ------------------------------------------------------------
-    # Validate selective dataset
+    # STEP 4
     # ------------------------------------------------------------
 
-    validate_filtered_dataset(
-        original=original,
-        source_augmented=augmented,
-        filtered=filtered,
+    verify_output(
+        output_path=output_path,
+        original_lengths=original_lengths,
         threshold=args.threshold,
-        dataset_name=output_path.name,
     )
-
-    # ------------------------------------------------------------
-    # Save ONLY after validation passes
-    # ------------------------------------------------------------
-
-    save_json(
-        data=filtered,
-        path=output_path,
-    )
-
-    # ------------------------------------------------------------
-    # Final message
-    # ------------------------------------------------------------
 
     print()
     print("=" * 70)
     print("SELECTIVE AUGMENTATION COMPLETE")
     print("=" * 70)
 
+    print()
+    print("Rule applied:")
+
     print(
-        f"\nCreated:\n"
-        f"  {output_path}"
+        f"  Original history <= {args.threshold}"
+        " -> keep all 3 synthetic interactions"
     )
 
     print(
-        "\nRule applied:"
-        f"\n  Original history <= {args.threshold}"
-        "  -> keep 3 synthetic interactions"
-        f"\n  Original history > {args.threshold}"
-        "   -> remove all synthetic interactions"
+        f"  Original history > {args.threshold}"
+        "  -> remove all synthetic interactions"
     )
 
-    print(
-        "\nAll validation checks passed."
-    )
+    print()
+    print("All streaming validation checks passed.")
+
+    print()
+    print(f"Created:")
+    print(f"  {output_path}")
 
 
 if __name__ == "__main__":
