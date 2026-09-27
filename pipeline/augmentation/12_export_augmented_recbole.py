@@ -12,6 +12,7 @@
 import json
 import os
 import argparse
+import ijson
 
 
 # ==========================================================
@@ -81,6 +82,15 @@ def parse_args():
         help=(
             "Optional custom output .inter file. "
             "If omitted, the default LLaMA augmented file is used."
+        ),
+    )
+
+    parser.add_argument(
+        "--selective",
+        action="store_true",
+        help=(
+            "Indicate that the input is a selective augmentation "
+            "dataset, where users may have 0 or 3 synthetic interactions."
         ),
     )
 
@@ -190,13 +200,8 @@ def export_augmented_recbole():
 
     print()
 
-    user_histories = load_json(
-        input_file
-    )
-
     print(
-        f"Users loaded: "
-        f"{len(user_histories):,}"
+        "Streaming user histories..."
     )
 
     # ======================================================
@@ -219,188 +224,200 @@ def export_augmented_recbole():
     # Process Users
     # ======================================================
 
-    for user_id, sequence in (
-        user_histories.items()
-    ):
+    user_count = 0
 
-        user_id = clean_text(
-            user_id
+    with open(
+        input_file,
+        "rb"
+    ) as file:
+
+        user_histories = ijson.kvitems(
+            file,
+            ""
         )
 
-        if not user_id:
+        for user_id, sequence in user_histories:
 
-            invalid_users += 1
-            continue
+            user_count += 1
 
-        if not sequence:
-
-            invalid_users += 1
-            continue
-
-        # --------------------------------------------------
-        # Sort strictly by explicit sequence_position
-        # --------------------------------------------------
-
-        sequence = sorted(
-            sequence,
-            key=lambda item: (
-                item.get(
-                    "sequence_position",
-                    0
-                )
-            )
-        )
-
-        # --------------------------------------------------
-        # Validate sequence positions
-        # --------------------------------------------------
-
-        expected_positions = list(
-            range(
-                1,
-                len(sequence) + 1
-            )
-        )
-
-        actual_positions = [
-            item.get(
-                "sequence_position"
-            )
-            for item in sequence
-        ]
-
-        if (
-            actual_positions
-            != expected_positions
-        ):
-
-            invalid_positions += 1
-
-            raise RuntimeError(
-                "\nInvalid sequence positions found.\n"
-                f"User: {user_id}\n"
-                f"Expected: {expected_positions}\n"
-                f"Actual:   {actual_positions}"
+            user_id = clean_text(
+                user_id
             )
 
-        # --------------------------------------------------
-        # Last two positions must be validation and test
-        # --------------------------------------------------
+            if not user_id:
 
-        if len(sequence) < 3:
+                invalid_users += 1
+                continue
 
-            raise RuntimeError(
-                f"User {user_id} has fewer than "
-                "3 interactions."
-            )
+            if not sequence:
 
-        if (
-            sequence[-2].get(
-                "interaction_source"
-            )
-            != "real_validation"
-        ):
+                invalid_users += 1
+                continue
 
-            raise RuntimeError(
-                "\nValidation boundary corrupted.\n"
-                f"User: {user_id}"
-            )
+            # --------------------------------------------------
+            # Sort strictly by explicit sequence_position
+            # --------------------------------------------------
 
-        if (
-            sequence[-1].get(
-                "interaction_source"
-            )
-            != "real_test"
-        ):
-
-            raise RuntimeError(
-                "\nTest boundary corrupted.\n"
-                f"User: {user_id}"
-            )
-
-        # --------------------------------------------------
-        # Export every interaction
-        # --------------------------------------------------
-
-        for item in sequence:
-
-            item_id = clean_text(
-                item.get("asin")
-            )
-
-            sequence_position = (
-                item.get(
-                    "sequence_position"
-                )
-            )
-
-            source = clean_text(
-                item.get(
-                    "interaction_source"
-                )
-            )
-
-            if not item_id:
-
-                raise RuntimeError(
-                    "\nMissing ASIN/item_id.\n"
-                    f"User: {user_id}\n"
-                    f"Position: {sequence_position}"
-                )
-
-            if sequence_position is None:
-
-                raise RuntimeError(
-                    "\nMissing sequence_position.\n"
-                    f"User: {user_id}\n"
-                    f"ASIN: {item_id}"
-                )
-
-            # ------------------------------------------------
-            # Count provenance
-            # ------------------------------------------------
-
-            if source == "real_train":
-
-                real_train_count += 1
-
-            elif source == "llm_synthetic":
-
-                synthetic_count += 1
-
-            elif source == "real_validation":
-
-                validation_count += 1
-
-            elif source == "real_test":
-
-                test_count += 1
-
-            else:
-
-                raise RuntimeError(
-                    "\nUnknown interaction source.\n"
-                    f"User: {user_id}\n"
-                    f"Source: {source}"
-                )
-
-            # ------------------------------------------------
-            # RecBole row
-            #
-            # sequence_position becomes the temporal/order field
-            # ------------------------------------------------
-
-            rows.append(
-                (
-                    user_id,
-                    item_id,
-                    float(
-                        sequence_position
+            sequence = sorted(
+                sequence,
+                key=lambda item: (
+                    item.get(
+                        "sequence_position",
+                        0
                     )
                 )
             )
 
-            total_interactions += 1
+            # --------------------------------------------------
+            # Validate sequence positions
+            # --------------------------------------------------
+
+            expected_positions = list(
+                range(
+                    1,
+                    len(sequence) + 1
+                )
+            )
+
+            actual_positions = [
+                item.get(
+                    "sequence_position"
+                )
+                for item in sequence
+            ]
+
+            if (
+                actual_positions
+                != expected_positions
+            ):
+
+                invalid_positions += 1
+
+                raise RuntimeError(
+                    "\nInvalid sequence positions found.\n"
+                    f"User: {user_id}\n"
+                    f"Expected: {expected_positions}\n"
+                    f"Actual:   {actual_positions}"
+                )
+
+            # --------------------------------------------------
+            # Last two positions must be validation and test
+            # --------------------------------------------------
+
+            if len(sequence) < 3:
+
+                raise RuntimeError(
+                    f"User {user_id} has fewer than "
+                    "3 interactions."
+                )
+
+            if (
+                sequence[-2].get(
+                    "interaction_source"
+                )
+                != "real_validation"
+            ):
+
+                raise RuntimeError(
+                    "\nValidation boundary corrupted.\n"
+                    f"User: {user_id}"
+                )
+
+            if (
+                sequence[-1].get(
+                    "interaction_source"
+                )
+                != "real_test"
+            ):
+
+                raise RuntimeError(
+                    "\nTest boundary corrupted.\n"
+                    f"User: {user_id}"
+                )
+
+            # --------------------------------------------------
+            # Export every interaction
+            # --------------------------------------------------
+
+            for item in sequence:
+
+                item_id = clean_text(
+                    item.get("asin")
+                )
+
+                sequence_position = (
+                    item.get(
+                        "sequence_position"
+                    )
+                )
+
+                source = clean_text(
+                    item.get(
+                        "interaction_source"
+                    )
+                )
+
+                if not item_id:
+
+                    raise RuntimeError(
+                        "\nMissing ASIN/item_id.\n"
+                        f"User: {user_id}\n"
+                        f"Position: {sequence_position}"
+                    )
+
+                if sequence_position is None:
+
+                    raise RuntimeError(
+                        "\nMissing sequence_position.\n"
+                        f"User: {user_id}\n"
+                        f"ASIN: {item_id}"
+                    )
+
+                # ------------------------------------------------
+                # Count provenance
+                # ------------------------------------------------
+
+                if source == "real_train":
+
+                    real_train_count += 1
+
+                elif source == "llm_synthetic":
+
+                    synthetic_count += 1
+
+                elif source == "real_validation":
+
+                    validation_count += 1
+
+                elif source == "real_test":
+
+                    test_count += 1
+
+                else:
+
+                    raise RuntimeError(
+                        "\nUnknown interaction source.\n"
+                        f"User: {user_id}\n"
+                        f"Source: {source}"
+                    )
+
+                # ------------------------------------------------
+                # RecBole row
+                #
+                # sequence_position becomes the temporal/order field
+                # ------------------------------------------------
+
+                rows.append(
+                    (
+                        user_id,
+                        item_id,
+                        float(
+                            sequence_position
+                        )
+                    )
+                )
+
+                total_interactions += 1
 
     # ======================================================
     # Global Checks
@@ -428,9 +445,7 @@ def export_augmented_recbole():
             "invalid sequence positions."
         )
 
-    expected_users = len(
-        user_histories
-    )
+    expected_users = user_count
 
     if (
         validation_count
