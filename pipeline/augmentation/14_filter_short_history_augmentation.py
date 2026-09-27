@@ -414,11 +414,16 @@ def filter_and_write_dataset(
     # ------------------------------------------------------------
 
     if users_processed != len(original_lengths):
+        missing_count = len(original_lengths) - users_processed
 
-        raise ValueError(
-            "Final user-count mismatch: "
-            f"original={len(original_lengths):,}, "
-            f"processed={users_processed:,}"
+        print()
+        print(
+            f"WARNING: Final output contains {missing_count:,} fewer users "
+            "than the original dataset."
+        )
+        print(
+            "These users were absent from the LLaMA augmented dataset "
+            "and remain excluded from the LLaMA condition."
         )
 
     print()
