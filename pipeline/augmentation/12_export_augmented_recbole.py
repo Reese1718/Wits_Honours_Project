@@ -469,21 +469,44 @@ def export_augmented_recbole():
             f"Actual:   {test_count:,}"
         )
 
-    expected_synthetic = (
-        expected_users
-        * EXPECTED_AUGMENTATIONS
-    )
+    if args.selective:
 
-    if (
-        synthetic_count
-        != expected_synthetic
-    ):
+        if synthetic_count % EXPECTED_AUGMENTATIONS != 0:
 
-        raise RuntimeError(
-            "\nSynthetic interaction count mismatch.\n"
-            f"Expected: {expected_synthetic:,}\n"
-            f"Actual:   {synthetic_count:,}"
+            raise RuntimeError(
+                "\nSelective synthetic interaction count is not "
+                "divisible by the expected 3 augmentations per user.\n"
+                f"Actual: {synthetic_count:,}"
+            )
+
+        synthetic_users = (
+            synthetic_count
+            // EXPECTED_AUGMENTATIONS
         )
+
+        print(
+            f"Selective augmentation: "
+            f"{synthetic_users:,} users have "
+            f"{EXPECTED_AUGMENTATIONS} synthetic interactions."
+        )
+
+    else:
+
+        expected_synthetic = (
+            expected_users
+            * EXPECTED_AUGMENTATIONS
+        )
+
+        if (
+            synthetic_count
+            != expected_synthetic
+        ):
+
+            raise RuntimeError(
+                "\nSynthetic interaction count mismatch.\n"
+                f"Expected: {expected_synthetic:,}\n"
+                f"Actual:   {synthetic_count:,}"
+            )
 
     expected_total = (
         real_train_count
@@ -515,11 +538,26 @@ def export_augmented_recbole():
         "test interaction."
     )
 
-    print(
-        "Every user has exactly "
-        f"{EXPECTED_AUGMENTATIONS} "
-        "LLM synthetic interactions."
-    )
+    if args.selective:
+
+        print(
+            f"{synthetic_count // EXPECTED_AUGMENTATIONS:,} users "
+            f"have exactly {EXPECTED_AUGMENTATIONS} "
+            "LLM synthetic interactions."
+        )
+
+        print(
+            f"{expected_users - (synthetic_count // EXPECTED_AUGMENTATIONS):,} "
+            "users have no synthetic interactions."
+        )
+
+    else:
+
+        print(
+            "Every user has exactly "
+            f"{EXPECTED_AUGMENTATIONS} "
+            "LLM synthetic interactions."
+        )
 
     # ======================================================
     # Write RecBole .inter File
