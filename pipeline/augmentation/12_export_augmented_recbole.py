@@ -66,6 +66,24 @@ def parse_args():
         ),
     )
 
+    parser.add_argument(
+        "--input-file",
+        default=None,
+        help=(
+            "Optional custom input JSON file. "
+            "If omitted, the default LLaMA augmented file is used."
+        ),
+    )
+
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help=(
+            "Optional custom output .inter file. "
+            "If omitted, the default LLaMA augmented file is used."
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -134,14 +152,22 @@ def export_augmented_recbole():
         "exports"
     )
 
-    input_file = os.path.join(
-        export_dir,
-        f"{dataset_prefix}_llama_augmented_user_histories.json"
+    input_file = (
+        args.input_file
+        if args.input_file is not None
+        else os.path.join(
+            export_dir,
+            f"{dataset_prefix}_llama_augmented_user_histories.json"
+        )
     )
 
-    output_file = os.path.join(
-        export_dir,
-        f"{dataset_prefix}_llama_augmented.inter"
+    output_file = (
+        args.output_file
+        if args.output_file is not None
+        else os.path.join(
+            export_dir,
+            f"{dataset_prefix}_llama_augmented.inter"
+        )
     )
 
     # ======================================================
