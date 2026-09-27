@@ -58,6 +58,7 @@ MAIN_PROCESS_PORT=$((20000 + SLURM_JOB_ID % 20000))
 
 accelerate launch \
     --multi_gpu \
+    --mixed_precision fp16 \
     --num_machines 1 \
     --num_processes 2 \
     --main_process_port "${MAIN_PROCESS_PORT}" \

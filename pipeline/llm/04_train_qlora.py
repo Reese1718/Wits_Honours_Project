@@ -882,6 +882,22 @@ def main() -> None:
 
     print("Creating QLoRA trainer...")
 
+    if use_bf16:
+        raise RuntimeError(
+            "BF16 training is disabled for this project. "
+            "Use compute_dtype=float16."
+        )
+
+    if not use_fp16:
+        raise RuntimeError(
+            "FP16 training must be enabled for this project."
+        )
+
+    if compute_dtype != torch.float16:
+        raise RuntimeError(
+            f"Expected torch.float16 compute dtype, got {compute_dtype}."
+        )
+
     trainer = SFTTrainer(
         model=model,
         args=training_arguments,

@@ -1,5 +1,5 @@
 experiment:
-  name: qwen_video_games_recent5_three_qlora
+  name: qwen_video_games_qlora
   dataset: Video Games
   seed: 42
 
@@ -11,22 +11,18 @@ model:
   eos_token: "<|im_end|>"
 
 data:
-  train_file: /datasets/dnaidoo3/Video_Games/processed/llm/sft/train_recent5_three_per_user.jsonl
-  validation_file: /datasets/dnaidoo3/Video_Games/processed/llm/sft/validation_recent5.jsonl
-
-  preprocessing_workers: 4
-
+  train_file: datasets/Video Games/processed/llm/sft/train.jsonl
+  validation_file: datasets/Video Games/processed/llm/sft/validation.jsonl
+  preprocessing_workers: 2
   max_train_samples: null
-  max_validation_samples: 5000
-  shuffle_before_sampling: true
-
-  metadata_file: /datasets/dnaidoo3/Video_Games/exports/Video_Games_metadata_lookup.json
-  catalogue_file: /datasets/dnaidoo3/Video_Games/processed/llm/splits/item_catalogue.json
-  validation_split_file: /datasets/dnaidoo3/Video_Games/processed/llm/splits/validation.jsonl
-  test_split_file: /datasets/dnaidoo3/Video_Games/processed/llm/splits/test.jsonl
+  max_validation_samples: null
+  metadata_file: datasets/Video Games/exports/Video_Games_metadata_lookup.json
+  catalogue_file: datasets/Video Games/processed/llm/splits/item_catalogue.json
+  validation_split_file: datasets/Video Games/processed/llm/splits/validation.jsonl
+  test_split_file: datasets/Video Games/processed/llm/splits/test.jsonl
 
 quantization:
-  compute_dtype: float16
+  compute_dtype: auto
   quant_type: nf4
   use_double_quant: true
 
@@ -38,13 +34,12 @@ lora:
   target_modules: all-linear
 
 training:
-  output_dir: /datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/qwen_recent5_three
+  output_dir: datasets/Video Games/processed/llm/checkpoints/qwen
+  epochs: 3
 
-  epochs: 1
-
-  train_batch_size: 8
-  eval_batch_size: 8
-  gradient_accumulation_steps: 2
+  train_batch_size: 4
+  eval_batch_size: 4
+  gradient_accumulation_steps: 8
 
   learning_rate: 0.0002
   weight_decay: 0.0
@@ -53,16 +48,16 @@ training:
   optimizer: paged_adamw_8bit
   max_grad_norm: 0.3
 
-  max_sequence_length: 1024
+  max_sequence_length: 2048
   gradient_checkpointing: true
   packing: false
 
   logging_steps: 10
   eval_strategy: epoch
   save_strategy: epoch
-  save_total_limit: 1
+  save_total_limit: null
 
-  dataloader_workers: 4
+  dataloader_workers: 2
   report_to: none
 
 checkpoint_selection:
@@ -70,15 +65,8 @@ checkpoint_selection:
   num_beams: 20
   batch_size: 4
   max_validation_users: 5000
-  max_history_length: 5
   exclude_history_items: true
   length_penalty: 1.0
 
 generation:
-  top_k: 10
-  num_beams: 20
-  batch_size: 4
-  max_history_length: 5
-  max_new_tokens: 24
   exclude_history_items: true
-  length_penalty: 1.0
