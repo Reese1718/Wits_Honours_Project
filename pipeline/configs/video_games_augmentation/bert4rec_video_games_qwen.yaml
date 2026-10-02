@@ -6,7 +6,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Video_Games_selective_qwen_augmented
+dataset: Fashion_selective_qwen_augmented
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id

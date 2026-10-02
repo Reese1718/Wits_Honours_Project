@@ -14,12 +14,12 @@ def load_user_histories(path: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Analyse original Video Games user interaction counts."
+        description="Analyse original Fashion user interaction counts."
     )
     parser.add_argument(
         "--input",
         required=True,
-        help="Path to original Video Games user histories JSON.",
+        help="Path to original Fashion user histories JSON.",
     )
     args = parser.parse_args()
 
@@ -54,7 +54,7 @@ def main() -> None:
     frequency = Counter(counts)
 
     print("=" * 60)
-    print("VIDEO GAMES ORIGINAL USER INTERACTION DISTRIBUTION")
+    print("FASHION ORIGINAL USER INTERACTION DISTRIBUTION")
     print("=" * 60)
 
     print(f"Users:    {n_users:,}")
@@ -63,7 +63,7 @@ def main() -> None:
     print(f"Mean:     {mean(counts):.2f}")
     print(f"Median:   {median(counts):.2f}")
 
-    # Simple percentile calculation.
+    # Linear interpolation between adjacent sorted values.
     def percentile(values, p):
         index = (len(values) - 1) * p
         lower = int(index)
@@ -94,7 +94,7 @@ def main() -> None:
     print(f"{'Threshold':>15} {'Users':>15} {'Percentage':>15}")
     print("-" * 60)
 
-    for threshold in [1, 2, 3, 5, 8, 10, 15, 20, 30, 50, 100]:
+    for threshold in [1, 2, 3, 5, 6, 7, 8, 10, 15, 20, 30, 50, 100]:
         user_count = sum(c <= threshold for c in counts)
         percentage = 100 * user_count / n_users
 
