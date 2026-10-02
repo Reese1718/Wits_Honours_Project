@@ -1,14 +1,9 @@
-
 # ==========================================================
-
-# BERT4Rec Configuration - Video Games Qwen
-
+# BERT4Rec Configuration - Video Games Selective Qwen
 # ==========================================================
 
 # ----------------------------------------------------------
-
 # Dataset
-
 # ----------------------------------------------------------
 
 dataset: Video_Games_selective_qwen_augmented
@@ -19,12 +14,10 @@ ITEM_ID_FIELD: item_id
 TIME_FIELD: timestamp
 
 load_col:
-inter: [user_id, item_id, timestamp]
+  inter: [user_id, item_id, timestamp]
 
 # ----------------------------------------------------------
-
 # Sequential Recommendation
-
 # ----------------------------------------------------------
 
 ITEM_LIST_LENGTH_FIELD: item_length
@@ -32,9 +25,7 @@ LIST_SUFFIX: _list
 MAX_ITEM_LIST_LENGTH: 50
 
 # ----------------------------------------------------------
-
 # BERT4Rec Model
-
 # ----------------------------------------------------------
 
 hidden_size: 64
@@ -51,28 +42,22 @@ layer_norm_eps: 1e-12
 initializer_range: 0.02
 
 # Masking
-
 mask_ratio: 0.2
 
 loss_type: CE
 
 # ----------------------------------------------------------
-
 # Training
-
 # ----------------------------------------------------------
 
 # Diagnostic run
-
 epochs: 20
 
-# Reduced from 512 -> 256 to lower RAM usage
-
+# Reduced from 512 -> 256
 train_batch_size: 256
 eval_batch_size: 256
 
-# Increased from 1e-5 to allow substantially better learning
-
+# Learning rate optimized for faster learning
 learning_rate: 0.001
 
 stopping_step: 10
@@ -80,58 +65,48 @@ eval_step: 1
 
 train_neg_sample_args: null
 
-# Gradient clipping for stable training
-
+# Gradient clipping
 clip_grad_norm:
-max_norm: 1.0
-norm_type: 2
+  max_norm: 1.0
+  norm_type: 2
 
 # Mixed precision
-
 enable_amp: True
 enable_scaler: True
 
 # Keep CPU memory usage controlled
-
 worker: 2
 
 # ----------------------------------------------------------
-
 # Reproducibility
-
 # ----------------------------------------------------------
 
 seed: 42
 reproducibility: True
 
 # ----------------------------------------------------------
-
 # Evaluation
-
 # ----------------------------------------------------------
 
 eval_args:
-group_by: user
-order: TO
-split:
-LS: valid_and_test
-mode: full
+  group_by: user
+  order: TO
+  split:
+    LS: valid_and_test
+  mode: full
 
 metrics:
-
-* Recall
-* MRR
-* NDCG
-* Hit
+  - Recall
+  - MRR
+  - NDCG
+  - Hit
 
 topk: 10
 valid_metric: NDCG@10
 metric_decimal_place: 4
 
 # ----------------------------------------------------------
-
 # Hardware
-
 # ----------------------------------------------------------
 
 gpu_id: 0
