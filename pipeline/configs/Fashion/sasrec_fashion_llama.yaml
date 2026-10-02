@@ -1,0 +1,109 @@
+
+# ==========================================================
+# SASRec Configuration - Fashion Selective LLaMA
+# ==========================================================
+
+# ----------------------------------------------------------
+# Dataset
+# ----------------------------------------------------------
+dataset: Fashion_Games_selective_llama_augmented
+data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
+
+USER_ID_FIELD: user_id
+ITEM_ID_FIELD: item_id
+TIME_FIELD: timestamp
+
+load_col:
+  inter: [user_id, item_id, timestamp]
+
+# ----------------------------------------------------------
+# Sequential Recommendation
+# ----------------------------------------------------------
+
+ITEM_LIST_LENGTH_FIELD: item_length
+LIST_SUFFIX: _list
+
+# Maximum number of historical items used by SASRec
+MAX_ITEM_LIST_LENGTH: 50
+
+# ----------------------------------------------------------
+# Model
+# ----------------------------------------------------------
+
+embedding_size: 64
+
+hidden_size: 64
+
+num_layers: 2
+
+num_heads: 2
+
+dropout_prob: 0.2
+
+hidden_dropout_prob: 0.2
+
+attn_dropout_prob: 0.2
+
+# ----------------------------------------------------------
+# Training
+# ----------------------------------------------------------
+
+epochs: 100
+
+train_batch_size: 256
+
+learning_rate: 0.001
+
+stopping_step: 10
+
+eval_step: 1
+
+# Explicitly use Cross Entropy loss.
+# CE loss does not use negative sampling.
+loss_type: CE
+
+train_neg_sample_args: null
+
+# ----------------------------------------------------------
+# Reproducibility
+# ----------------------------------------------------------
+
+seed: 42
+
+reproducibility: True
+
+# ----------------------------------------------------------
+# Evaluation
+# ----------------------------------------------------------
+
+eval_args:
+  group_by: user
+  order: TO
+  split:
+    LS: valid_and_test
+  mode: full
+
+metrics:
+  - Recall
+  - MRR
+  - NDCG
+  - Hit
+
+topk: 10
+
+valid_metric: NDCG@10
+
+metric_decimal_place: 4
+
+# ----------------------------------------------------------
+# Hardware
+# ----------------------------------------------------------
+
+gpu_id: 0
+
+# ----------------------------------------------------------
+# Experiment artifacts (separate model and augmentation runs)
+# ----------------------------------------------------------
+checkpoint_dir: /content/drive/MyDrive/Wits_Honours_Project/saved/sasrec_fashion_selective_llama
+dataset_save_path: /content/drive/MyDrive/Wits_Honours_Project/saved/sasrec_fashion_selective_llama/Fashion_Games_selective_llama_augmented-dataset.pth
+dataloaders_save_path: /content/drive/MyDrive/Wits_Honours_Project/saved/sasrec_fashion_selective_llama/Fashion_Games_selective_llama_augmented-dataloaders.pth
