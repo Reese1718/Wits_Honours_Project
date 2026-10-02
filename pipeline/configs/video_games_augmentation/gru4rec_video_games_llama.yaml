@@ -45,8 +45,8 @@ loss_type: CE
 # Diagnostic run before final longer training
 epochs: 20
 
-train_batch_size: 256
-eval_batch_size: 256
+train_batch_size: 128
+eval_batch_size: 128
 
 learning_rate: 0.001
 
