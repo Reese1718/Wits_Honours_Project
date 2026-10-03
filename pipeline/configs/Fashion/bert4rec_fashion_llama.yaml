@@ -1,12 +1,13 @@
 # ==========================================================
-# BERT4Rec Configuration - Fashion Selective LLaMA
+# BERT4Rec Configuration - Fashion
 # ==========================================================
 
 # ----------------------------------------------------------
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Fashion_selective_llama_augmented
+dataset: Fashion_selective_qwen_augmented
+
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
@@ -30,51 +31,39 @@ MAX_ITEM_LIST_LENGTH: 50
 
 hidden_size: 64
 inner_size: 256
-
 n_layers: 2
 n_heads: 2
-
 hidden_dropout_prob: 0.2
 attn_dropout_prob: 0.2
-
 hidden_act: gelu
 layer_norm_eps: 1e-12
 initializer_range: 0.02
 
-# Masking
-mask_ratio: 0.2
-
+# CRITICAL FIX 1: Masking 20% is too much for sparse data.
+mask_ratio: 0.1
 loss_type: CE
 
 # ----------------------------------------------------------
 # Training
 # ----------------------------------------------------------
 
-# Diagnostic run
-epochs: 20
+epochs: 100
+train_batch_size: 256
 
-# Reduced from 512 -> 256
-train_batch_size: 64
-eval_batch_size: 64
-# Learning rate optimized for faster learning
-learning_rate: 0.001
+# CRITICAL FIX 2: Lower the learning rate to prevent gradient explosion
+learning_rate: 0.0001
 
-stopping_step: 10
+stopping_step: 20
 eval_step: 1
-
 train_neg_sample_args: null
 
-# Gradient clipping
 clip_grad_norm:
   max_norm: 1.0
   norm_type: 2
 
-# Mixed precision
-enable_amp: True
-enable_scaler: True
-
-# Keep CPU memory usage controlled
-worker: 2
+# Disable mixed-precision training to prevent NaN loss
+enable_amp: False
+enable_scaler: False
 
 # ----------------------------------------------------------
 # Reproducibility
@@ -109,10 +98,3 @@ metric_decimal_place: 4
 # ----------------------------------------------------------
 
 gpu_id: 0
-
-# ----------------------------------------------------------
-# Experiment artifacts (separate model and augmentation runs)
-# ----------------------------------------------------------
-checkpoint_dir: /content/drive/MyDrive/Wits_Honours_Project/saved/bert4rec_fashion_selective_llama
-dataset_save_path: /content/drive/MyDrive/Wits_Honours_Project/saved/bert4rec_fashion_selective_llama/Fashion_Games_selective_llama_augmented-dataset.pth
-dataloaders_save_path: /content/drive/MyDrive/Wits_Honours_Project/saved/bert4rec_fashion_selective_llama/Fashion_Games_selective_llama_augmented-dataloaders.pth
