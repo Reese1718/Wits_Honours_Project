@@ -54,9 +54,8 @@ loss_type: CE
 epochs: 20
 
 # Reduced from 512 -> 256
-train_batch_size: 256
-eval_batch_size: 256
-
+train_batch_size: 64
+eval_batch_size: 64
 # Learning rate optimized for faster learning
 learning_rate: 0.001
 
