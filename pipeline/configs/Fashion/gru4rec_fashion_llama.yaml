@@ -8,7 +8,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Fashion_Games_selective_llama_augmented
+dataset: Fashion_selective_llama_augmented
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
