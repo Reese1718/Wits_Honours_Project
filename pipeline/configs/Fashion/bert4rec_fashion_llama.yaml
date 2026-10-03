@@ -6,7 +6,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Fashion_selective_qwen_augmented
+dataset: Fashion_selective_llama_augmented
 
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
@@ -48,7 +48,7 @@ loss_type: CE
 # ----------------------------------------------------------
 
 epochs: 100
-train_batch_size: 256
+train_batch_size: 128
 
 # CRITICAL FIX 2: Lower the learning rate to prevent gradient explosion
 learning_rate: 0.0001
