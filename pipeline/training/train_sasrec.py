@@ -27,6 +27,18 @@ CONFIG_FILE = os.path.join(
     sys.argv[1]
 )
 
+import numpy as np
+
+# RecBole compatibility with NumPy 2.x
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+
+if not hasattr(np, "complex_"):
+    np.complex_ = np.complex128
+
+if not hasattr(np, "unicode_"):
+    np.unicode_ = np.str_
+
 
 # ==========================================================
 # Main Training Function
