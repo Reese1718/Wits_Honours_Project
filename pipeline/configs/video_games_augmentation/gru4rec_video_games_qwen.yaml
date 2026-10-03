@@ -1,15 +1,13 @@
-
-
 # ==========================================================
-# GRU4Rec Configuration - Video Games Selective Qwen
+# GRU4Rec Configuration - Video Games
 # ==========================================================
 
 # ----------------------------------------------------------
 # Dataset
 # ----------------------------------------------------------
 
+
 dataset: Video_Games_selective_qwen_augmented
-data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
 USER_ID_FIELD: user_id
 ITEM_ID_FIELD: item_id
@@ -18,61 +16,55 @@ TIME_FIELD: timestamp
 load_col:
   inter: [user_id, item_id, timestamp]
 
+
 # ----------------------------------------------------------
 # Sequential Recommendation
 # ----------------------------------------------------------
 
 ITEM_LIST_LENGTH_FIELD: item_length
 LIST_SUFFIX: _list
+
 MAX_ITEM_LIST_LENGTH: 50
+
 
 # ----------------------------------------------------------
 # GRU4Rec Model
 # ----------------------------------------------------------
 
-embedding_size: 64
-hidden_size: 128
+hidden_size: 64
+
 num_layers: 1
 
 dropout_prob: 0.2
 
 loss_type: CE
 
+
 # ----------------------------------------------------------
 # Training
 # ----------------------------------------------------------
 
-# Diagnostic run before final longer training
-epochs: 20
+epochs: 30
 
 train_batch_size: 128
-eval_batch_size: 128
 
-learning_rate: 0.001
+learning_rate: 0.0001
 
 stopping_step: 10
+
 eval_step: 1
 
 train_neg_sample_args: null
 
-# Gradient clipping
-clip_grad_norm:
-  max_norm: 1.0
-  norm_type: 2
-
-# Mixed precision
-enable_amp: False
-enable_scaler: False
-
-# Controlled data loading
-worker: 2
 
 # ----------------------------------------------------------
 # Reproducibility
 # ----------------------------------------------------------
 
 seed: 42
+
 reproducibility: True
+
 
 # ----------------------------------------------------------
 # Evaluation
@@ -92,8 +84,11 @@ metrics:
   - Hit
 
 topk: 10
+
 valid_metric: NDCG@10
+
 metric_decimal_place: 4
+
 
 # ----------------------------------------------------------
 # Hardware
