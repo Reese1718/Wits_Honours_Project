@@ -2,6 +2,19 @@ import os
 import sys
 import torch
 
+import numpy as np
+
+# RecBole compatibility with NumPy 2.x
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+
+
+# NumPy 2 compatibility for RecBole
+import numpy as np
+np.float_ = np.float64
+np.complex_ = np.complex128
+np.unicode_ = np.str_
+
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.model.sequential_recommender.sasrec import SASRec
