@@ -8,6 +8,17 @@ from recbole.model.sequential_recommender.gru4rec import GRU4Rec
 from recbole.trainer import Trainer
 from recbole.utils import init_seed, init_logger
 
+import numpy as np
+
+# Compatibility for RecBole with NumPy 2
+for name, replacement in {
+    "float_": np.float64,
+    "complex_": np.complex128,
+    "unicode_": np.str_,
+}.items():
+    if not hasattr(np, name):
+        setattr(np, name, replacement)
+
 
 # ==========================================================
 # Project Configuration
