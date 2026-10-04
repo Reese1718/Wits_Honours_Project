@@ -19,6 +19,13 @@ import threading
 import psutil
 import torch
 
+
+# NumPy 2 compatibility for RecBole
+import numpy as np
+np.float_ = np.float64
+np.complex_ = np.complex128
+np.unicode_ = np.str_
+
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.model.sequential_recommender.bert4rec import BERT4Rec
