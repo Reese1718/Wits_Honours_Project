@@ -29,10 +29,10 @@ mask_ratio: 0.1
 loss_type: CE
 
 # Training
-epochs: 100
+epochs: 30
 train_batch_size: 256
 learning_rate: 0.0001
-stopping_step: 20
+stopping_step: 10
 eval_step: 1
 
 train_neg_sample_args: null
