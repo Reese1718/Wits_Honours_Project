@@ -221,3 +221,6 @@ __marimo__/
 *.jsonl
 *.inter
 datasets/
+
+# Deterministically generated QLoRA sweep configs
+pipeline/configs/llm/tuning/generated/

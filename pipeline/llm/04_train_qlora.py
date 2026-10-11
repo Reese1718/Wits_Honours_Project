@@ -22,6 +22,7 @@ import math
 import os
 import platform
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -354,6 +355,7 @@ def count_parameters(model) -> dict[str, int | float]:
 
 
 def main() -> None:
+    workflow_started_at = time.monotonic()
     args = parse_arguments()
 
     config_path = resolve_project_path(args.config)
@@ -755,6 +757,23 @@ def main() -> None:
     estimated_optimizer_steps = math.ceil(
         optimizer_steps_per_epoch * training_epochs
     )
+    learning_rate = float(
+        nested_value(
+            config,
+            "training.learning_rate",
+            default=2e-4,
+        )
+    )
+    warmup_ratio = float(
+        nested_value(
+            config,
+            "training.warmup_ratio",
+            default=0.03,
+        )
+    )
+    warmup_steps = math.ceil(
+        estimated_optimizer_steps * warmup_ratio
+    )
 
     if is_primary_process:
         print("Training plan:")
@@ -778,13 +797,7 @@ def main() -> None:
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=eval_batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
-        learning_rate=float(
-            nested_value(
-                config,
-                "training.learning_rate",
-                default=2e-4,
-            )
-        ),
+        learning_rate=learning_rate,
         weight_decay=float(
             nested_value(
                 config,
@@ -792,16 +805,7 @@ def main() -> None:
                 default=0.0,
             )
         ),
-        warmup_steps=math.ceil(
-            estimated_optimizer_steps
-            * float(
-                nested_value(
-                    config,
-                    "training.warmup_ratio",
-                    default=0.03,
-                )
-            )
-        ),
+        warmup_steps=warmup_steps,
         lr_scheduler_type=str(
             nested_value(
                 config,
@@ -955,12 +959,22 @@ def main() -> None:
     trainer.save_model(str(best_loss_adapter))
     tokenizer.save_pretrained(best_loss_adapter)
 
+    workflow_runtime_seconds = (
+        time.monotonic() - workflow_started_at
+    )
+
     run_summary = {
         "experiment_name": experiment_name,
         "dataset": dataset_name,
         "base_model": model_name,
+        "seed": seed,
         "training_examples": len(datasets["train"]),
         "validation_examples": len(datasets["validation"]),
+        "training_loss": training_result.metrics.get("train_loss"),
+        "validation_loss": validation_metrics.get("eval_loss"),
+        "training_metrics": training_result.metrics,
+        "validation_metrics": validation_metrics,
+        "runtime_seconds": workflow_runtime_seconds,
         "best_validation_loss_checkpoint": (
             trainer.state.best_model_checkpoint
         ),
@@ -1011,6 +1025,9 @@ def main() -> None:
         "effective_global_batch_size": effective_batch_size,
         "epochs": training_epochs,
         "estimated_optimizer_steps": estimated_optimizer_steps,
+        "learning_rate": learning_rate,
+        "warmup_ratio": warmup_ratio,
+        "warmup_steps": warmup_steps,
         "shuffle_before_sampling": shuffle_before_sampling,
     }
 

@@ -14,6 +14,7 @@ The script:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import math
 import random
 import re
@@ -641,6 +642,7 @@ def evaluate_adapter(
 
 
 def main() -> None:
+    selection_started_at = time.monotonic()
     args = parse_arguments()
 
     if not torch.cuda.is_available():
@@ -735,6 +737,31 @@ def main() -> None:
             max_validation_users
         )
 
+    validation_sampling_seed = int(
+        nested_value(
+            config,
+            "checkpoint_selection.sampling_seed",
+            default=seed,
+        )
+    )
+
+    selection_tie_breakers = nested_value(
+        config,
+        "checkpoint_selection.tie_breakers",
+        default=["mrr", "hit"],
+    )
+    if (
+        not isinstance(selection_tie_breakers, list)
+        or sorted(selection_tie_breakers) != ["hit", "mrr"]
+    ):
+        raise ValueError(
+            "checkpoint_selection.tie_breakers must contain hit and mrr."
+        )
+    tie_breaker_metric_keys = [
+        f"{metric_name}@{top_k}"
+        for metric_name in selection_tie_breakers
+    ]
+
     exclude_history = bool(
         nested_value(
             config,
@@ -788,8 +815,15 @@ def main() -> None:
     validation_records = load_validation_records(
         path=validation_path,
         max_users=max_validation_users,
-        seed=seed,
+        seed=validation_sampling_seed,
     )
+    validation_user_ids = [
+        str(record["user_id"])
+        for record in validation_records
+    ]
+    validation_sample_sha256 = hashlib.sha256(
+        "\n".join(validation_user_ids).encode("utf-8")
+    ).hexdigest()
 
     metadata_lookup = load_metadata_lookup(metadata_path)
     catalogue_item_ids = load_catalogue_item_ids(
@@ -979,10 +1013,12 @@ def main() -> None:
         torch.cuda.empty_cache()
 
     checkpoint_results.sort(
-        key=lambda result: (
-            result["metrics"][f"ndcg@{top_k}"],
-            result["metrics"][f"mrr@{top_k}"],
-            result["metrics"][f"hit@{top_k}"],
+        key=lambda result: tuple(
+            result["metrics"][metric_key]
+            for metric_key in (
+                f"ndcg@{top_k}",
+                *tie_breaker_metric_keys,
+            )
         ),
         reverse=True,
     )
@@ -1002,8 +1038,10 @@ def main() -> None:
         ),
         "base_model": model_name,
         "selection_metric": f"ndcg@{top_k}",
+        "selection_tie_breakers": tie_breaker_metric_keys,
         "validation_users": len(validation_records),
-        "validation_sampling_seed": seed,
+        "validation_sampling_seed": validation_sampling_seed,
+        "validation_sample_sha256": validation_sample_sha256,
         "full_validation_set_used": (
             max_validation_users is None
         ),
@@ -1023,6 +1061,102 @@ def main() -> None:
 
     write_json(selection_summary, summary_path)
 
+    run_summary_path = output_directory / "run_summary.json"
+    run_summary = (
+        read_json(run_summary_path)
+        if run_summary_path.is_file()
+        else {}
+    )
+    training_plan = run_summary.get("training_plan", {})
+    training_metrics = run_summary.get("training_metrics", {})
+    validation_metrics = run_summary.get("validation_metrics", {})
+    selection_runtime_seconds = (
+        time.monotonic() - selection_started_at
+    )
+    training_runtime_seconds = run_summary.get("runtime_seconds")
+
+    experiment_summary = {
+        "experiment": selection_summary["experiment"],
+        "dataset": selection_summary["dataset"],
+        "model": model_name,
+        "seed": seed,
+        "learning_rate": nested_value(
+            config,
+            "training.learning_rate",
+            default=None,
+        ),
+        "lora_rank": nested_value(
+            config,
+            "lora.rank",
+            default=None,
+        ),
+        "lora_alpha": nested_value(
+            config,
+            "lora.alpha",
+            default=None,
+        ),
+        "lora_dropout": nested_value(
+            config,
+            "lora.dropout",
+            default=None,
+        ),
+        "epochs": nested_value(
+            config,
+            "training.epochs",
+            default=None,
+        ),
+        "effective_global_batch_size": training_plan.get(
+            "effective_global_batch_size"
+        ),
+        "warmup_steps": training_plan.get("warmup_steps"),
+        "training_loss": run_summary.get(
+            "training_loss",
+            training_metrics.get("train_loss"),
+        ),
+        "validation_loss": run_summary.get(
+            "validation_loss",
+            validation_metrics.get("eval_loss"),
+        ),
+        f"validation_ndcg@{top_k}": best_result["metrics"][
+            f"ndcg@{top_k}"
+        ],
+        f"validation_hit@{top_k}": best_result["metrics"][
+            f"hit@{top_k}"
+        ],
+        f"validation_recall@{top_k}": best_result["metrics"][
+            f"recall@{top_k}"
+        ],
+        f"validation_mrr@{top_k}": best_result["metrics"][
+            f"mrr@{top_k}"
+        ],
+        "selected_checkpoint": best_result["checkpoint"],
+        "validation_users": len(validation_records),
+        "validation_sampling_seed": validation_sampling_seed,
+        "validation_sample_sha256": validation_sample_sha256,
+        "full_validation_set_used": selection_summary[
+            "full_validation_set_used"
+        ],
+        "training_runtime_seconds": training_runtime_seconds,
+        "checkpoint_selection_runtime_seconds": (
+            selection_runtime_seconds
+        ),
+        "total_runtime_seconds": (
+            (
+                float(training_runtime_seconds)
+                + selection_runtime_seconds
+            )
+            if training_runtime_seconds is not None
+            else None
+        ),
+        "config_file": str(config_path),
+        "run_summary_file": str(run_summary_path),
+        "checkpoint_selection_file": str(summary_path),
+    }
+    experiment_summary_path = (
+        output_directory / "experiment_summary.json"
+    )
+    write_json(experiment_summary, experiment_summary_path)
+
     print()
     print("=" * 72)
     print("CHECKPOINT SELECTION COMPLETE")
@@ -1036,6 +1170,7 @@ def main() -> None:
         f"{best_result['metrics'][f'ndcg@{top_k}']:.6f}"
     )
     print(f"Selection summary: {summary_path}")
+    print(f"Experiment summary: {experiment_summary_path}")
 
 
 if __name__ == "__main__":

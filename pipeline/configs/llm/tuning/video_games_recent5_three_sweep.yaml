@@ -1,0 +1,57 @@
+workflow:
+  name: video_games_recent5_three
+  seed: 42
+  output_root: /datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning
+  generated_config_dir: pipeline/configs/llm/tuning/generated
+  stage1_train_samples: 100000
+  stage1_validation_loss_samples: 5000
+  stage1_validation_recommendation_users: 5000
+  stage2_validation_loss_samples: 5000
+  validation_sampling_seed: 20261008
+  promote_per_model: 2
+
+models:
+  qwen:
+    base_config: pipeline/configs/llm/qwen_video_games_recent5_three_qlora.yaml
+  llama:
+    base_config: pipeline/configs/llm/llama_video_games_recent5_three_qlora.yaml
+
+# Six balanced screening points. Each learning rate, rank and dropout occurs
+# twice; epochs 2 and 3 each occur three times. Alpha is always 2 x rank.
+stage1_candidates:
+  - id: lr5e5_r8_a16_d0_e2
+    learning_rate: 0.00005
+    rank: 8
+    alpha: 16
+    dropout: 0.0
+    epochs: 2
+  - id: lr1e4_r8_a16_d005_e3
+    learning_rate: 0.0001
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    epochs: 3
+  - id: lr2e4_r16_a32_d01_e2
+    learning_rate: 0.0002
+    rank: 16
+    alpha: 32
+    dropout: 0.1
+    epochs: 2
+  - id: lr5e5_r16_a32_d005_e3
+    learning_rate: 0.00005
+    rank: 16
+    alpha: 32
+    dropout: 0.05
+    epochs: 3
+  - id: lr1e4_r32_a64_d01_e2
+    learning_rate: 0.0001
+    rank: 32
+    alpha: 64
+    dropout: 0.1
+    epochs: 2
+  - id: lr2e4_r32_a64_d0_e3
+    learning_rate: 0.0002
+    rank: 32
+    alpha: 64
+    dropout: 0.0
+    epochs: 3
