@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=vg-r5x3-tune
 #SBATCH --partition=biggpu
+#SBATCH --nodelist=mscluster107
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
