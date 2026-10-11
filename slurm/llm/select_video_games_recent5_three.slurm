@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=vg-r5x3-select
-#SBATCH --partition=gpuexpress
+#SBATCH --partition=biggpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
 #SBATCH --time=08:00:00
-#SBATCH --gres=gpu:1
+#SBATCH --exclusive
 #SBATCH --output=slurm-%x-%j.out
 #SBATCH --error=slurm-%x-%j.err
 
@@ -31,6 +31,7 @@ export HF_HOME="${DATA_ROOT}/huggingface_cache"
 export PYTHONUNBUFFERED="1"
 export TOKENIZERS_PARALLELISM="false"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
+export CUDA_VISIBLE_DEVICES="0"
 
 mkdir -p "${HF_HOME}"
 

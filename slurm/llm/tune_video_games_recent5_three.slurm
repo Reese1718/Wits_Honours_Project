@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=vg-r5x3-tune
-#SBATCH --partition=gpuexpress
+#SBATCH --partition=biggpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=128G
+#SBATCH --mem=110G
 #SBATCH --time=08:00:00
-#SBATCH --gres=gpu:2
+#SBATCH --exclusive
 #SBATCH --output=slurm-%x-%j.out
 #SBATCH --error=slurm-%x-%j.err
 
