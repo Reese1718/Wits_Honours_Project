@@ -172,6 +172,8 @@ def prepare_stage1(args: argparse.Namespace) -> None:
     manifest, workflow = manifest_values(manifest_path)
     generated_root = project_path(workflow["generated_config_dir"])
     output_root = str(workflow["output_root"]).rstrip("/")
+    single_gpu = bool(args.single_gpu)
+    stage_name = "stage1_single_gpu" if single_gpu else "stage1"
     created: list[Path] = []
 
     for model_key, model_settings in manifest["models"].items():
@@ -183,8 +185,8 @@ def prepare_stage1(args: argparse.Namespace) -> None:
             candidate_id = str(candidate["id"])
             config = copy.deepcopy(base)
             experiment_name = (
-                f"{model_key}_video_games_recent5_three_stage1_"
-                f"{candidate_id}"
+                f"{model_key}_video_games_recent5_three_"
+                f"{stage_name}_{candidate_id}"
             )
             config["experiment"]["name"] = experiment_name
             config["experiment"]["seed"] = int(workflow["seed"])
@@ -205,8 +207,11 @@ def prepare_stage1(args: argparse.Namespace) -> None:
             config["training"]["save_total_limit"] = int(
                 candidate["epochs"]
             )
+            if single_gpu:
+                config["training"]["train_batch_size"] = 4
+                config["training"]["gradient_accumulation_steps"] = 16
             config["training"]["output_dir"] = (
-                f"{output_root}/{model_key}/stage1/{candidate_id}"
+                f"{output_root}/{model_key}/{stage_name}/{candidate_id}"
             )
             config["checkpoint_selection"]["max_validation_users"] = int(
                 workflow["stage1_validation_recommendation_users"]
@@ -225,19 +230,24 @@ def prepare_stage1(args: argparse.Namespace) -> None:
                 "candidate_id": candidate_id,
                 "manifest": relative_project_path(manifest_path),
             }
+            if single_gpu:
+                config["tuning"]["execution"] = "single_gpu"
             validate_fixed_protocol(config, base_path)
             config_path = (
-                generated_root / "stage1" / f"{model_key}_{candidate_id}.yaml"
+                generated_root
+                / stage_name
+                / f"{model_key}_{candidate_id}.yaml"
             )
             write_yaml(config_path, config, args.overwrite)
             created.append(config_path)
 
-    list_path = generated_root / "stage1_configs.txt"
+    list_path = generated_root / f"{stage_name}_configs.txt"
     atomic_write_text(
         list_path,
         "".join(f"{relative_project_path(path)}\n" for path in created),
     )
-    print(f"Prepared {len(created)} Stage-1 configs.")
+    label = "single-GPU Stage-1" if single_gpu else "Stage-1"
+    print(f"Prepared {len(created)} {label} configs.")
     print(f"Config list: {list_path}")
 
 
@@ -613,7 +623,20 @@ def build_parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare-stage1")
     prepare.add_argument("--manifest", default=DEFAULT_MANIFEST)
     prepare.add_argument("--overwrite", action="store_true")
-    prepare.set_defaults(function=prepare_stage1)
+    prepare.set_defaults(function=prepare_stage1, single_gpu=False)
+
+    prepare_single_gpu = subparsers.add_parser(
+        "prepare-stage1-single-gpu"
+    )
+    prepare_single_gpu.add_argument(
+        "--manifest",
+        default=DEFAULT_MANIFEST,
+    )
+    prepare_single_gpu.add_argument("--overwrite", action="store_true")
+    prepare_single_gpu.set_defaults(
+        function=prepare_stage1,
+        single_gpu=True,
+    )
 
     rank = subparsers.add_parser("rank")
     rank.add_argument("--config-dir", required=True)
