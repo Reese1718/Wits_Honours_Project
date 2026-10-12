@@ -173,7 +173,13 @@ def prepare_stage1(args: argparse.Namespace) -> None:
     generated_root = project_path(workflow["generated_config_dir"])
     output_root = str(workflow["output_root"]).rstrip("/")
     single_gpu = bool(args.single_gpu)
-    stage_name = "stage1_single_gpu" if single_gpu else "stage1"
+    rtx_3090 = bool(getattr(args, "rtx_3090", False))
+    if rtx_3090:
+        stage_name = "stage1_3090"
+    elif single_gpu:
+        stage_name = "stage1_single_gpu"
+    else:
+        stage_name = "stage1"
     created: list[Path] = []
 
     for model_key, model_settings in manifest["models"].items():
@@ -207,7 +213,10 @@ def prepare_stage1(args: argparse.Namespace) -> None:
             config["training"]["save_total_limit"] = int(
                 candidate["epochs"]
             )
-            if single_gpu:
+            if rtx_3090:
+                config["training"]["train_batch_size"] = 2
+                config["training"]["gradient_accumulation_steps"] = 32
+            elif single_gpu:
                 config["training"]["train_batch_size"] = 4
                 config["training"]["gradient_accumulation_steps"] = 16
             config["training"]["output_dir"] = (
@@ -230,7 +239,9 @@ def prepare_stage1(args: argparse.Namespace) -> None:
                 "candidate_id": candidate_id,
                 "manifest": relative_project_path(manifest_path),
             }
-            if single_gpu:
+            if rtx_3090:
+                config["tuning"]["execution"] = "rtx_3090"
+            elif single_gpu:
                 config["tuning"]["execution"] = "single_gpu"
             validate_fixed_protocol(config, base_path)
             config_path = (
@@ -246,7 +257,12 @@ def prepare_stage1(args: argparse.Namespace) -> None:
         list_path,
         "".join(f"{relative_project_path(path)}\n" for path in created),
     )
-    label = "single-GPU Stage-1" if single_gpu else "Stage-1"
+    if rtx_3090:
+        label = "RTX-3090 Stage-1"
+    elif single_gpu:
+        label = "single-GPU Stage-1"
+    else:
+        label = "Stage-1"
     print(f"Prepared {len(created)} {label} configs.")
     print(f"Config list: {list_path}")
 
@@ -636,6 +652,15 @@ def build_parser() -> argparse.ArgumentParser:
     prepare_single_gpu.set_defaults(
         function=prepare_stage1,
         single_gpu=True,
+    )
+
+    prepare_3090 = subparsers.add_parser("prepare-stage1-3090")
+    prepare_3090.add_argument("--manifest", default=DEFAULT_MANIFEST)
+    prepare_3090.add_argument("--overwrite", action="store_true")
+    prepare_3090.set_defaults(
+        function=prepare_stage1,
+        single_gpu=False,
+        rtx_3090=True,
     )
 
     rank = subparsers.add_parser("rank")
