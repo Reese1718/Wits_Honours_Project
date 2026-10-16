@@ -399,6 +399,47 @@ def enforce_trainable_fp32(model, stage: str) -> None:
         )
 
 
+def sequence_length_diagnostics(datasets, tokenizer, max_length: int) -> dict:
+    """Measure complete conversations before TRL truncates or masks tokens."""
+    diagnostics = {}
+    print("Sequence length diagnostics (before truncation):")
+    for split, dataset in datasets.items():
+        lengths = []
+        for batch in dataset.iter(batch_size=256):
+            texts = [
+                tokenizer.apply_chat_template(
+                    prompt + completion,
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+                for prompt, completion in zip(batch["prompt"], batch["completion"])
+            ]
+            encoded = tokenizer(
+                texts, add_special_tokens=False, truncation=False, padding=False,
+            )
+            lengths.extend(len(ids) for ids in encoded["input_ids"])
+        lengths.sort()
+        count = len(lengths)
+        truncated = sum(length > max_length for length in lengths)
+        stats = {
+            "examples": count,
+            "max_observed": max(lengths, default=0),
+            "p95": lengths[math.ceil(count * 0.95) - 1] if count else 0,
+            "p99": lengths[math.ceil(count * 0.99) - 1] if count else 0,
+            "max_sequence_length": max_length,
+            "examples_requiring_truncation": truncated,
+            "percentage_requiring_truncation": 100 * truncated / count if count else 0,
+        }
+        diagnostics[split] = stats
+        print(f"  {split}: {json.dumps(stats)}")
+        if truncated:
+            print(
+                f"WARNING: {split}: {truncated:,}/{count:,} examples exceed "
+                f"{max_length} tokens; review truncation before accepting this run."
+            )
+    return diagnostics
+
+
 def main() -> None:
     workflow_started_at = time.monotonic()
     args = parse_arguments()
@@ -627,6 +668,13 @@ def main() -> None:
 
     tokenizer.padding_side = "right"
 
+    max_sequence_length = int(
+        nested_value(config, "training.max_sequence_length", default=2048)
+    )
+    length_diagnostics = sequence_length_diagnostics(
+        datasets, tokenizer, max_sequence_length,
+    )
+
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type=quant_type,
@@ -829,6 +877,8 @@ def main() -> None:
         )
         print(f"  Effective global batch:   {effective_batch_size}")
         print(f"  Epochs:                   {training_epochs}")
+        print(f"  Training examples:        {len(datasets['train']):,}")
+        print(f"  Max sequence length:      {max_sequence_length}")
         print(
             "  Estimated optimizer steps: "
             f"{estimated_optimizer_steps:,}"
@@ -892,13 +942,7 @@ def main() -> None:
         gradient_checkpointing_kwargs={
             "use_reentrant": False,
         },
-        max_length=int(
-            nested_value(
-                config,
-                "training.max_sequence_length",
-                default=2048,
-            )
-        ),
+        max_length=max_sequence_length,
         eos_token=nested_value(
             config,
             "model.eos_token",
@@ -989,9 +1033,11 @@ def main() -> None:
 
     print("Starting QLoRA training...")
 
+    training_started_at = time.monotonic()
     training_result = trainer.train(
         resume_from_checkpoint=resume_checkpoint
     )
+    training_runtime_seconds = time.monotonic() - training_started_at
 
     trainer.save_state()
     trainer.save_metrics(
@@ -1029,6 +1075,8 @@ def main() -> None:
         "training_metrics": training_result.metrics,
         "validation_metrics": validation_metrics,
         "runtime_seconds": workflow_runtime_seconds,
+        "training_runtime_seconds": training_runtime_seconds,
+        "sequence_length_diagnostics": length_diagnostics,
         "best_validation_loss_checkpoint": (
             trainer.state.best_model_checkpoint
         ),

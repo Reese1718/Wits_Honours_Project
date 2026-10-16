@@ -80,18 +80,19 @@ def manifest_values(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         raise ValueError("Manifest is missing workflow settings.")
     if not isinstance(models, dict) or set(models) != {"qwen", "llama"}:
         raise ValueError("Manifest models must contain qwen and llama.")
-    if not isinstance(candidates, list) or not 6 <= len(candidates) <= 10:
-        raise ValueError("Stage 1 must define between 6 and 10 candidates.")
+    if not isinstance(candidates, list) or len(candidates) != 3:
+        raise ValueError("Stage 1 must define exactly three screening candidates.")
 
-    allowed_learning_rates = {5e-5, 1e-4, 2e-4}
-    allowed_ranks = {8, 16, 32}
-    allowed_dropouts = {0.0, 0.05, 0.1}
-    allowed_epochs = {2, 3}
+    allowed_learning_rates = {5e-5, 1e-4}
+    allowed_ranks = {8, 16}
+    allowed_dropouts = {0.05}
+    allowed_epochs = {1}
     candidate_ids: set[str] = set()
     observed_learning_rates: set[float] = set()
     observed_ranks: set[int] = set()
     observed_dropouts: set[float] = set()
     observed_epochs: set[int] = set()
+    observed_pairs: set[tuple[float, int]] = set()
 
     for candidate in candidates:
         if not isinstance(candidate, dict):
@@ -107,7 +108,7 @@ def manifest_values(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         if learning_rate not in allowed_learning_rates:
             raise ValueError(f"Unsupported learning rate: {learning_rate}")
         if rank not in allowed_ranks or alpha != 2 * rank:
-            raise ValueError("LoRA alpha must equal 2 x rank for rank 8/16/32.")
+            raise ValueError("LoRA alpha must equal 2 x rank for rank 8/16.")
         if dropout not in allowed_dropouts:
             raise ValueError(f"Unsupported LoRA dropout: {dropout}")
         if epochs not in allowed_epochs:
@@ -117,12 +118,14 @@ def manifest_values(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         observed_ranks.add(rank)
         observed_dropouts.add(dropout)
         observed_epochs.add(epochs)
+        observed_pairs.add((learning_rate, rank))
 
     if (
         observed_learning_rates != allowed_learning_rates
         or observed_ranks != allowed_ranks
         or observed_dropouts != allowed_dropouts
         or observed_epochs != allowed_epochs
+        or observed_pairs != {(5e-5, 8), (1e-4, 8), (1e-4, 16)}
     ):
         raise ValueError("Stage 1 must cover every requested tuning value.")
     return manifest, workflow
@@ -149,8 +152,8 @@ def validate_fixed_protocol(config: dict[str, Any], path: Path) -> None:
     training = config.get("training", {})
     if training.get("gradient_checkpointing") is not True:
         raise ValueError(f"{path}: gradient checkpointing must remain enabled.")
-    if int(training.get("max_sequence_length", 0)) != 1024:
-        raise ValueError(f"{path}: max sequence length must remain 1024.")
+    if int(training.get("max_sequence_length", 0)) not in {512, 1024}:
+        raise ValueError(f"{path}: max sequence length must be 512 or 1024.")
 
     for section in ("checkpoint_selection", "generation"):
         settings = config.get(section, {})
@@ -175,11 +178,11 @@ def prepare_stage1(args: argparse.Namespace) -> None:
     single_gpu = bool(args.single_gpu)
     rtx_3090 = bool(getattr(args, "rtx_3090", False))
     if rtx_3090:
-        stage_name = "stage1_3090"
+        stage_name = "stage1_fast_3090"
     elif single_gpu:
-        stage_name = "stage1_single_gpu"
+        stage_name = "stage1_fast_single_gpu"
     else:
-        stage_name = "stage1"
+        stage_name = "stage1_fast"
     created: list[Path] = []
 
     for model_key, model_settings in manifest["models"].items():
@@ -210,6 +213,8 @@ def prepare_stage1(args: argparse.Namespace) -> None:
                 candidate["learning_rate"]
             )
             config["training"]["epochs"] = int(candidate["epochs"])
+            config["training"]["max_sequence_length"] = 512
+            config["checkpoint_selection"]["num_beams"] = 10
             config["training"]["save_total_limit"] = int(
                 candidate["epochs"]
             )
@@ -220,7 +225,8 @@ def prepare_stage1(args: argparse.Namespace) -> None:
                 config["training"]["train_batch_size"] = 4
                 config["training"]["gradient_accumulation_steps"] = 16
             config["training"]["output_dir"] = (
-                f"{output_root}/{model_key}/{stage_name}/{candidate_id}"
+                f"{output_root}/{model_key}/{stage_name}/"
+                f"{workflow['stage1_train_samples']}_samples/{candidate_id}"
             )
             config["checkpoint_selection"]["max_validation_users"] = int(
                 workflow["stage1_validation_recommendation_users"]
@@ -462,6 +468,13 @@ def rank_runs(args: argparse.Namespace) -> None:
         config_directory=config_directory,
         config_list_argument=args.config_list,
     )
+    if args.model_key:
+        config_paths = [
+            path for path in config_paths
+            if load_yaml(path).get("tuning", {}).get("model_key") == args.model_key
+        ]
+        if not config_paths:
+            raise ValueError(f"No configs found for {args.model_key}.")
 
     rows: list[dict[str, Any]] = []
     missing: list[str] = []
@@ -573,12 +586,14 @@ def promote_stage2(args: argparse.Namespace) -> None:
     if not isinstance(results, list):
         raise ValueError("Ranking JSON has no results list.")
 
-    top_per_model = int(args.top_per_model)
+    top_per_model = int(workflow["promote_per_model"])
+    if top_per_model != 1 or args.top_per_model != 1:
+        raise ValueError("The fast protocol promotes exactly one candidate per model.")
     output_root = str(workflow["output_root"]).rstrip("/")
     config_directory = project_path(args.output_dir)
     promoted: list[Path] = []
 
-    for model_key in ("qwen", "llama"):
+    for model_key in ([args.model_key] if args.model_key else ("qwen", "llama")):
         winners = [
             row
             for row in results
@@ -594,8 +609,15 @@ def promote_stage2(args: argparse.Namespace) -> None:
         for winner in winners:
             config = load_yaml(project_path(winner["config_file"]))
             candidate_id = str(winner["candidate_id"])
+            if config.get("tuning", {}).get("workflow") != workflow["name"]:
+                raise ValueError("Cannot promote a candidate from the old protocol.")
+            execution = config["tuning"].get("execution")
+            stage_name = {
+                "rtx_3090": "stage2_fast_3090",
+                "single_gpu": "stage2_fast_single_gpu",
+            }.get(execution, "stage2_fast")
             experiment_name = (
-                f"{model_key}_video_games_recent5_three_stage2_"
+                f"{model_key}_video_games_recent5_three_{stage_name}_"
                 f"{candidate_id}"
             )
             config["experiment"]["name"] = experiment_name
@@ -603,8 +625,11 @@ def promote_stage2(args: argparse.Namespace) -> None:
             config["data"]["max_validation_samples"] = int(
                 workflow["stage2_validation_loss_samples"]
             )
+            config["training"]["epochs"] = 1
+            config["training"]["save_total_limit"] = 1
+            config["checkpoint_selection"]["num_beams"] = 20
             config["training"]["output_dir"] = (
-                f"{output_root}/{model_key}/stage2/{candidate_id}"
+                f"{output_root}/{model_key}/{stage_name}/{candidate_id}"
             )
             config["checkpoint_selection"]["max_validation_users"] = None
             config["checkpoint_selection"]["sampling_seed"] = int(
@@ -618,18 +643,23 @@ def promote_stage2(args: argparse.Namespace) -> None:
                 }
             )
             config_path = (
-                config_directory / f"{model_key}_{candidate_id}_full.yaml"
+                config_directory / stage_name / f"{model_key}_{candidate_id}_full.yaml"
             )
             write_yaml(config_path, config, args.overwrite)
             promoted.append(config_path)
 
-    list_path = config_directory / "stage2_configs.txt"
-    atomic_write_text(
-        list_path,
-        "".join(f"{relative_project_path(path)}\n" for path in promoted),
-    )
+    for directory in sorted({path.parent for path in promoted}):
+        suffix = f"_{args.model_key}" if args.model_key else ""
+        list_path = directory / f"{directory.name}{suffix}_configs.txt"
+        atomic_write_text(
+            list_path,
+            "".join(
+                f"{relative_project_path(path)}\n"
+                for path in promoted if path.parent == directory
+            ),
+        )
+        print(f"Config list: {list_path}")
     print(f"Prepared {len(promoted)} Stage-2 configs.")
-    print(f"Config list: {list_path}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -669,6 +699,7 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--output-dir", required=True)
     rank.add_argument("--allow-incomplete", action="store_true")
     rank.add_argument("--require-full-validation", action="store_true")
+    rank.add_argument("--model-key", choices=("qwen", "llama"))
     rank.set_defaults(function=rank_runs)
 
     promote = subparsers.add_parser("promote-stage2")
@@ -677,15 +708,16 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument(
         "--top-per-model",
         type=int,
-        default=2,
-        choices=(1, 2),
+        default=1,
+        choices=(1,),
     )
     promote.add_argument(
         "--output-dir",
         default=(
-            "pipeline/configs/llm/tuning/generated/stage2"
+            "pipeline/configs/llm/tuning/generated/fast_promoted"
         ),
     )
+    promote.add_argument("--model-key", choices=("qwen", "llama"))
     promote.add_argument("--overwrite", action="store_true")
     promote.set_defaults(function=promote_stage2)
     return parser
