@@ -34,7 +34,7 @@ os.environ.setdefault(
 
 import torch
 from datasets import DatasetDict, load_dataset
-from peft import LoraConfig, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -352,6 +352,51 @@ def count_parameters(model) -> dict[str, int | float]:
         "total_parameters": total,
         "trainable_percentage": percentage,
     }
+
+
+def enforce_trainable_fp32(model, stage: str) -> None:
+    """Keep optimizer weights FP32 without casting the frozen 4-bit base."""
+    counts = {torch.float32: 0, torch.float16: 0, torch.bfloat16: 0}
+    bf16_names = []
+    converted = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        counts[parameter.dtype] = (
+            counts.get(parameter.dtype, 0) + parameter.numel()
+        )
+        if parameter.dtype == torch.bfloat16:
+            bf16_names.append(name)
+        if parameter.is_floating_point() and parameter.dtype != torch.float32:
+            parameter.data = parameter.data.to(torch.float32)
+            converted += parameter.numel()
+
+    print(f"Trainable parameter dtypes ({stage}, before FP32 enforcement):")
+    for dtype, count in counts.items():
+        print(f"  {dtype}: {count:,} elements")
+    for name in bf16_names:
+        print(f"  BF16 trainable parameter: {name}")
+    print(f"  Converted to FP32: {converted:,} elements")
+    print("Trainable parameter dtypes:")
+    final_counts = {torch.float32: 0, torch.float16: 0, torch.bfloat16: 0}
+    for parameter in model.parameters():
+        if parameter.requires_grad:
+            final_counts[parameter.dtype] = (
+                final_counts.get(parameter.dtype, 0) + parameter.numel()
+            )
+    for dtype, count in final_counts.items():
+        print(f"  {dtype}: {count:,} elements")
+
+    bf16_trainable = [
+        name
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad and parameter.dtype == torch.bfloat16
+    ]
+    if bf16_trainable:
+        raise RuntimeError(
+            "BF16 trainable parameters remain before FP16 training: "
+            + ", ".join(bf16_trainable[:20])
+        )
 
 
 def main() -> None:
@@ -902,14 +947,23 @@ def main() -> None:
             f"Expected torch.float16 compute dtype, got {compute_dtype}."
         )
 
+    # Prepare adapters here so the dtype check includes every trainable weight.
+    # No modules_to_save or embedding/lm_head unfreezing is requested.
+    model = get_peft_model(model, lora_config)
+    enforce_trainable_fp32(model, "before trainer creation")
+
     trainer = SFTTrainer(
         model=model,
         args=training_arguments,
         train_dataset=datasets["train"],
         eval_dataset=datasets["validation"],
         processing_class=tokenizer,
-        peft_config=lora_config,
     )
+
+    # Some TRL versions cast quantized-model trainables to BF16 inside
+    # SFTTrainer even with fp16=True. Restore FP32 before optimizer creation;
+    # FP16 autocast and the base model's NF4/FP16 compute remain unchanged.
+    enforce_trainable_fp32(trainer.model, "after trainer creation")
 
     parameter_statistics = count_parameters(trainer.model)
 
