@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=vg-r5x3-3090
 #SBATCH --partition=bigbatch
-#SBATCH --nodelist=mscluster56
+#SBATCH --nodelist=mscluster77
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
