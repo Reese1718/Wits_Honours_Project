@@ -626,7 +626,10 @@ def promote_stage2(args: argparse.Namespace) -> None:
                 workflow["stage2_validation_loss_samples"]
             )
             config["training"]["epochs"] = 1
-            config["training"]["save_total_limit"] = 1
+            config["training"]["eval_strategy"] = "epoch"
+            config["training"]["save_strategy"] = "steps"
+            config["training"]["save_steps"] = 500
+            config["training"]["save_total_limit"] = 2
             config["checkpoint_selection"]["num_beams"] = 20
             config["training"]["output_dir"] = (
                 f"{output_root}/{model_key}/{stage_name}/{candidate_id}"

@@ -768,7 +768,8 @@ def main() -> None:
         )
     )
 
-    if eval_strategy != save_strategy:
+    is_stage2 = config.get("tuning", {}).get("stage") == 2
+    if not is_stage2 and eval_strategy != save_strategy:
         raise ValueError(
             "training.eval_strategy and training.save_strategy must "
             "match when loading the best checkpoint."
@@ -931,7 +932,9 @@ def main() -> None:
         ),
         eval_strategy=eval_strategy,
         save_strategy=save_strategy,
-        load_best_model_at_end=True,
+        save_steps=int(nested_value(config, "training.save_steps", default=500)),
+        # Periodic Stage-2 saves and epoch evaluation cannot use best-model reload.
+        load_best_model_at_end=not is_stage2,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         save_total_limit=save_total_limit,
