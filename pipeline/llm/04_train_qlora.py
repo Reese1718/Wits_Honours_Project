@@ -48,6 +48,7 @@ from common import (
     set_random_seed,
     write_json,
 )
+from stage2_execution import Stage2CheckpointCallback, stage2_completed, stage2_resume
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -446,6 +447,12 @@ def main() -> None:
 
     config_path = resolve_project_path(args.config)
     config = load_yaml(config_path)
+    is_stage2 = config.get("tuning", {}).get("stage") == 2
+    if is_stage2:
+        stage2_output = resolve_project_path(config["training"]["output_dir"])
+        if stage2_completed(config, stage2_output):
+            print("Stage 2 already completed successfully; no training required.")
+            return
 
     hardware = validate_environment()
 
@@ -519,6 +526,12 @@ def main() -> None:
         train_path=train_path,
         validation_path=validation_path,
     )
+
+    if is_stage2:
+        requested_resume = args.resume_from_checkpoint
+        if requested_resume and requested_resume.lower() != "latest":
+            requested_resume = str(resolve_project_path(requested_resume))
+        resume_checkpoint = stage2_resume(config, output_directory, requested_resume)
 
     set_random_seed(seed)
 
@@ -768,7 +781,6 @@ def main() -> None:
         )
     )
 
-    is_stage2 = config.get("tuning", {}).get("stage") == 2
     if not is_stage2 and eval_strategy != save_strategy:
         raise ValueError(
             "training.eval_strategy and training.save_strategy must "
@@ -885,6 +897,15 @@ def main() -> None:
             f"{estimated_optimizer_steps:,}"
         )
         print()
+
+    if is_stage2 and is_primary_process:
+        print("Stage-2 execution:")
+        print(f"  Output directory: {output_directory}")
+        print(f"  Total training epochs: {training_epochs}")
+        print(f"  Estimated optimizer steps: {estimated_optimizer_steps}")
+        print(f"  Save every: {nested_value(config, 'training.save_steps', 500)} steps")
+        print(f"  Checkpoint retention: {save_total_limit}")
+        print(f"  Resume checkpoint: {resume_checkpoint or 'none - starting fresh'}")
 
     training_arguments = SFTConfig(
         output_dir=str(output_directory),
@@ -1006,6 +1027,8 @@ def main() -> None:
         eval_dataset=datasets["validation"],
         processing_class=tokenizer,
     )
+    if is_stage2:
+        trainer.add_callback(Stage2CheckpointCallback(config, output_directory))
 
     # Some TRL versions cast quantized-model trainables to BF16 inside
     # SFTTrainer even with fp16=True. Restore FP32 before optimizer creation;
@@ -1030,9 +1053,8 @@ def main() -> None:
     )
     print()
 
-    resume_checkpoint = resolve_resume_checkpoint(
-        args.resume_from_checkpoint
-    )
+    if not is_stage2:
+        resume_checkpoint = resolve_resume_checkpoint(args.resume_from_checkpoint)
 
     print("Starting QLoRA training...")
 
