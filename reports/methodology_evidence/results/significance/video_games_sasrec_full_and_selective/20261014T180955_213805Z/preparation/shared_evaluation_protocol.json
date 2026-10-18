@@ -1,0 +1,63 @@
+{
+  "shared_users": 109251,
+  "shared_items": 54594,
+  "excluded_baseline_users": [
+    "AETYBH3VLE2LLAFYZC5SR7MNCZTA",
+    "AFITZBL75YXU24XTIVIW4HNJW47A",
+    "AFKBF2AATONXPXEEWXQ2TPICATEA",
+    "AFUFPLJ7PH75PWVCNMU23ARP4KAA",
+    "AGGPLKIWWVFQKXN2KFGUVAOZ4RRQ",
+    "AGM3M7RRQOSM2AZKC3523UEFUM4Q",
+    "AHDWDVA3JS3EOTCOWSJ6H7LMAZSQ"
+  ],
+  "excluded_baseline_items": [
+    "B00F4Q3HTG"
+  ],
+  "condition_coverage": [
+    {
+      "condition": "full_qwen",
+      "raw_users": 109258,
+      "raw_items": 54595,
+      "missing_users": [],
+      "missing_user_count": 0
+    },
+    {
+      "condition": "full_llama",
+      "raw_users": 109251,
+      "raw_items": 54594,
+      "missing_users": [
+        "AETYBH3VLE2LLAFYZC5SR7MNCZTA",
+        "AFITZBL75YXU24XTIVIW4HNJW47A",
+        "AFKBF2AATONXPXEEWXQ2TPICATEA",
+        "AFUFPLJ7PH75PWVCNMU23ARP4KAA",
+        "AGGPLKIWWVFQKXN2KFGUVAOZ4RRQ",
+        "AGM3M7RRQOSM2AZKC3523UEFUM4Q",
+        "AHDWDVA3JS3EOTCOWSJ6H7LMAZSQ"
+      ],
+      "missing_user_count": 7
+    },
+    {
+      "condition": "selective_qwen",
+      "raw_users": 109258,
+      "raw_items": 54595,
+      "missing_users": [],
+      "missing_user_count": 0
+    },
+    {
+      "condition": "selective_llama",
+      "raw_users": 109251,
+      "raw_items": 54594,
+      "missing_users": [
+        "AETYBH3VLE2LLAFYZC5SR7MNCZTA",
+        "AFITZBL75YXU24XTIVIW4HNJW47A",
+        "AFKBF2AATONXPXEEWXQ2TPICATEA",
+        "AFUFPLJ7PH75PWVCNMU23ARP4KAA",
+        "AGGPLKIWWVFQKXN2KFGUVAOZ4RRQ",
+        "AGM3M7RRQOSM2AZKC3523UEFUM4Q",
+        "AHDWDVA3JS3EOTCOWSJ6H7LMAZSQ"
+      ],
+      "missing_user_count": 7
+    }
+  ],
+  "protocol": "Native histories/masks; same real item catalogue and shared users across all five checkpoints."
+}

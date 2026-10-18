@@ -1,0 +1,5 @@
+condition,kind,users,additional_interactions,validation_overlap_users,test_overlap_users,any_overlap_users,overlap_pct,longer_users_augmented
+full_qwen,full,3135,9405,42,10,52,1.6586921850079743,641
+full_llama,full,3135,9405,42,10,52,1.6586921850079743,641
+selective_qwen,selective,3135,7482,23,14,37,1.1802232854864434,0
+selective_llama,selective,3135,7482,35,10,45,1.4354066985645932,0
