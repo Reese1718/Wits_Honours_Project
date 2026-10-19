@@ -37,55 +37,12 @@ from transformers import (
 )
 
 
+from common import build_recommendation_messages
+
+
 # ---------------------------------------------------------------------------
 # Prompt format
 # ---------------------------------------------------------------------------
-# These must remain identical to the prompt-building code used in Steps 02
-# and 05.
-
-SYSTEM_PROMPT = (
-    "You are a recommender system. Given a user's interaction history, "
-    "predict the single most plausible next item. Respond with only the "
-    "item ID and no explanation."
-)
-
-
-def build_user_prompt(
-    history: list[str],
-    metadata: dict[str, dict[str, Any]],
-    max_history_length: int,
-) -> str:
-    """Create the user portion of the recommendation prompt."""
-
-    truncated_history = history[-max_history_length:]
-
-    lines = [
-        "The user interacted with the following items, ordered from oldest "
-        "to newest:"
-    ]
-
-    for position, item_id in enumerate(truncated_history, start=1):
-        record = metadata.get(item_id, {})
-        title = usable_title(record)
-
-        if not title:
-            title = "Unknown item"
-
-        lines.append(
-            f"{position}. {title} (Item ID: {item_id})"
-        )
-
-    lines.extend(
-        [
-            "",
-            "Which item is the user most likely to interact with next?",
-            "Return only the item ID.",
-        ]
-    )
-
-    return "\n".join(lines)
-
-
 def build_chat_prompt(
     tokenizer: AutoTokenizer,
     history: list[str],
@@ -94,20 +51,11 @@ def build_chat_prompt(
 ) -> str:
     """Apply the model's chat template to one recommendation prompt."""
 
-    messages = [
-        {
-            "role": "system",
-            "content": SYSTEM_PROMPT,
-        },
-        {
-            "role": "user",
-            "content": build_user_prompt(
-                history=history,
-                metadata=metadata,
-                max_history_length=max_history_length,
-            ),
-        },
-    ]
+    messages = build_recommendation_messages(
+        history_item_ids=history,
+        metadata_lookup=metadata,
+        max_history_length=max_history_length,
+    )
 
     return tokenizer.apply_chat_template(
         messages,
