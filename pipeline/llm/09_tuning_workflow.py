@@ -630,7 +630,8 @@ def promote_stage2(args: argparse.Namespace) -> None:
             config["training"]["save_strategy"] = "steps"
             config["training"]["save_steps"] = 500
             config["training"]["save_total_limit"] = 2
-            config["checkpoint_selection"]["num_beams"] = 20
+            config["checkpoint_selection"]["num_beams"] = 10
+            config["generation"]["num_beams"] = 10
             config["training"]["output_dir"] = (
                 f"{output_root}/{model_key}/{stage_name}/{candidate_id}"
             )

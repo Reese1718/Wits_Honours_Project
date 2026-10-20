@@ -1151,7 +1151,7 @@ def main() -> None:
     )
 
     num_beams = int(
-        nested_value(config, "generation.num_beams", default=20)
+        nested_value(config, "generation.num_beams", default=10)
     )
 
     batch_size = int(

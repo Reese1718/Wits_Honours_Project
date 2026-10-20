@@ -15,21 +15,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import math
 import random
 import re
 import time
 from collections import Counter
 from pathlib import Path
 from typing import Any, Callable
-
-import torch
-from peft import PeftModel
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    BitsAndBytesConfig,
-)
 
 from common import (
     build_recommendation_messages,
@@ -42,7 +33,10 @@ from common import (
     write_json,
     write_jsonl,
 )
-from constrained_decoding import CatalogueTokenConstraint
+from checkpoint_selection_shards import (
+    aggregate_payloads, atomic_shard_write, make_payload, metrics_from_predictions,
+    run_identity, shard_indices, shard_path,
+)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -55,7 +49,24 @@ def parse_arguments() -> argparse.Namespace:
         help="QLoRA experiment YAML file used for Step 04.",
     )
 
-    return parser.parse_args()
+    parser.add_argument("--generation-batch-size", type=int, default=None,
+                        help="Users per generation call; overrides YAML generation_batch_size/batch_size.")
+    parser.add_argument("--num-shards", type=int, default=1)
+    parser.add_argument("--shard-index", type=int, default=0)
+    parser.add_argument("--shard-run", default=None,
+                        help="Unique run identifier, required for sharded/aggregate execution.")
+    parser.add_argument("--aggregate", action="store_true",
+                        help="CPU-only: validate all completed shards and rank all checkpoints.")
+    parser.add_argument("--expected-users", type=int, default=None)
+    args = parser.parse_args()
+    shard_indices(0, args.num_shards, args.shard_index)
+    if (args.num_shards > 1 or args.aggregate) and not args.shard_run:
+        parser.error("--shard-run is required for sharded or aggregate execution")
+    if args.shard_run and not re.fullmatch(r"[A-Za-z0-9_-]+", args.shard_run):
+        parser.error("--shard-run must contain only letters, numbers, underscores and hyphens")
+    if args.aggregate and args.shard_index != 0:
+        parser.error("Aggregation does not accept a nonzero --shard-index")
+    return args
 
 
 def nested_value(
@@ -261,6 +272,11 @@ class HistoryAwareConstraint:
         blocked_exact_sequences: list[
             set[tuple[int, ...]]
         ] = []
+        # Beams repeatedly visit shared prefixes. Cache within this batch only;
+        # user-specific history exclusions must never cross batch boundaries.
+        allowed_cache: list[dict[tuple[int, ...], list[int]]] = [
+            {} for _ in blocked_items_by_batch
+        ]
 
         for blocked_items in blocked_items_by_batch:
             prefix_counts: Counter[tuple[int, ...]] = Counter()
@@ -311,6 +327,10 @@ class HistoryAwareConstraint:
                     :eos_position
                 ]
 
+            cached = allowed_cache[batch_id].get(generated_tokens)
+            if cached is not None:
+                return cached
+
             node = self.constraint.trie.get_node(
                 generated_tokens
             )
@@ -359,6 +379,7 @@ class HistoryAwareConstraint:
                 # been blocked for a user.
                 return [self.constraint.eos_token_id]
 
+            allowed_cache[batch_id][generated_tokens] = allowed
             return allowed
 
         return prefix_allowed_tokens_fn
@@ -450,38 +471,9 @@ def calculate_metrics(
     predictions: list[dict[str, Any]],
     top_k: int,
 ) -> dict[str, Any]:
-    hit_sum = 0.0
-    ndcg_sum = 0.0
-    mrr_sum = 0.0
-    short_ranking_count = 0
-
-    for prediction in predictions:
-        rank = prediction["target_rank"]
-
-        if len(prediction["recommendations"]) < top_k:
-            short_ranking_count += 1
-
-        if rank is not None and rank <= top_k:
-            hit_sum += 1.0
-            ndcg_sum += 1.0 / math.log2(rank + 1)
-            mrr_sum += 1.0 / rank
-
-    user_count = len(predictions)
-
-    return {
-        "users": user_count,
-        f"hit@{top_k}": hit_sum / user_count,
-        f"recall@{top_k}": hit_sum / user_count,
-        f"ndcg@{top_k}": ndcg_sum / user_count,
-        f"mrr@{top_k}": mrr_sum / user_count,
-        "short_ranking_users": short_ranking_count,
-        "complete_ranking_rate": (
-            (user_count - short_ranking_count) / user_count
-        ),
-    }
+    return metrics_from_predictions(predictions, top_k)
 
 
-@torch.inference_mode()
 def evaluate_adapter(
     model,
     tokenizer,
@@ -569,20 +561,27 @@ def evaluate_adapter(
             blocked_items_by_batch=blocked_items_by_batch,
         )
 
-        generation_output = model.generate(
-            **model_inputs,
-            max_new_tokens=max_new_tokens,
-            num_beams=num_beams,
-            num_return_sequences=top_k,
-            do_sample=False,
-            early_stopping=True,
-            length_penalty=length_penalty,
-            eos_token_id=catalogue_constraint.eos_token_id,
-            pad_token_id=tokenizer.pad_token_id,
-            return_dict_in_generate=True,
-            output_scores=True,
-            prefix_allowed_tokens_fn=prefix_callback,
-        )
+        try:
+            generation_output = model.generate(
+                **model_inputs,
+                max_new_tokens=max_new_tokens,
+                num_beams=num_beams,
+                num_return_sequences=top_k,
+                do_sample=False,
+                early_stopping=True,
+                length_penalty=length_penalty,
+                eos_token_id=catalogue_constraint.eos_token_id,
+                pad_token_id=tokenizer.pad_token_id,
+                return_dict_in_generate=True,
+                output_scores=True,
+                prefix_allowed_tokens_fn=prefix_callback,
+            )
+        except torch.cuda.OutOfMemoryError as error:
+            raise RuntimeError(
+                f"CUDA OOM during generation_batch_size={batch_size}. "
+                f"Retry with --generation-batch-size {max(1, batch_size // 2)}. "
+                "Beam count, sequence length and decoding settings were not changed."
+            ) from error
 
         batch_rankings = extract_batch_rankings(
             generation_output=generation_output,
@@ -621,12 +620,16 @@ def evaluate_adapter(
             len(validation_records),
         )
 
-        if completed % 100 == 0 or completed == len(
+        if completed % 400 < len(batch) or completed == len(
             validation_records
         ):
+            elapsed = time.time() - started_at
+            rate = completed / max(elapsed, 1e-9)
+            remaining = (len(validation_records) - completed) / rate
             print(
-                f"  Evaluated {completed:,}/"
-                f"{len(validation_records):,} users"
+                f"  Evaluated {completed:,}/{len(validation_records):,} users | "
+                f"Elapsed {elapsed:.0f}s | {rate:.2f} users/sec | "
+                f"Estimated remaining {remaining:.0f}s", flush=True,
             )
 
     metrics = calculate_metrics(
@@ -645,10 +648,16 @@ def main() -> None:
     selection_started_at = time.monotonic()
     args = parse_arguments()
 
-    if not torch.cuda.is_available():
-        raise RuntimeError(
-            "Step 05 requires a CUDA GPU."
-        )
+    # Aggregation intentionally needs neither CUDA nor model dependencies.
+    if not args.aggregate:
+        global torch, PeftModel, AutoModelForCausalLM, AutoTokenizer
+        global BitsAndBytesConfig, CatalogueTokenConstraint
+        import torch
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        from constrained_decoding import CatalogueTokenConstraint
+        if not torch.cuda.is_available():
+            raise RuntimeError("Step 05 requires a CUDA GPU.")
 
     config_path = resolve_project_path(args.config)
     config = load_yaml(config_path)
@@ -660,7 +669,8 @@ def main() -> None:
             default=42,
         )
     )
-    set_random_seed(seed)
+    if not args.aggregate:
+        set_random_seed(seed)
 
     model_name = str(
         nested_value(
@@ -714,17 +724,18 @@ def main() -> None:
         nested_value(
             config,
             "checkpoint_selection.num_beams",
-            default=20,
+            default=10,
         )
     )
 
-    batch_size = int(
-        nested_value(
-            config,
-            "checkpoint_selection.batch_size",
-            default=4,
-        )
-    )
+    batch_size = args.generation_batch_size
+    if batch_size is None:
+        batch_size = int(nested_value(
+            config, "checkpoint_selection.generation_batch_size",
+            default=nested_value(config, "checkpoint_selection.batch_size", default=4),
+        ))
+    if batch_size < 1:
+        raise ValueError("generation_batch_size must be at least 1")
 
     max_validation_users = nested_value(
         config,
@@ -825,10 +836,42 @@ def main() -> None:
         "\n".join(validation_user_ids).encode("utf-8")
     ).hexdigest()
 
-    metadata_lookup = load_metadata_lookup(metadata_path)
-    catalogue_item_ids = load_catalogue_item_ids(
-        catalogue_path
-    )
+    if args.expected_users is not None and len(validation_records) != args.expected_users:
+        raise ValueError(
+            f"Expected {args.expected_users} validation users; found {len(validation_records)}"
+        )
+    population = validation_records
+    indices = shard_indices(len(population), args.num_shards, args.shard_index)
+    if not args.aggregate and not indices:
+        raise ValueError("Empty shard; reduce --num-shards")
+    identity = None
+    selection_directory = output_directory / "validation_selection"
+    shard_directory = selection_directory / "shards" / (args.shard_run or "unused")
+    if args.shard_run:
+        identity_config = dict(config, data=dict(config["data"],
+            catalogue_file=str(catalogue_path), metadata_file=str(metadata_path)))
+        identity = run_identity(identity_config, population, checkpoints, {
+            "top_k": top_k, "num_beams": num_beams, "length_penalty": length_penalty,
+            "max_sequence_length": max_sequence_length, "max_history_length": max_history_length,
+            "exclude_history": exclude_history, "generation_batch_size": batch_size,
+            "do_sample": False, "early_stopping": True,
+            "num_return_sequences": top_k, "max_new_tokens": "catalogue_max_item_tokens+1",
+        })
+    validation_records = population if args.aggregate else [population[i] for i in indices]
+    if args.aggregate:
+        expected_files = {
+            shard_path(shard_directory, identity, checkpoint, args.num_shards, index)
+            for checkpoint in checkpoints for index in range(args.num_shards)
+        }
+        actual_files = set(shard_directory.glob("*.json"))
+        if actual_files != expected_files:
+            raise ValueError(
+                f"Shard files missing: {sorted(map(str, expected_files - actual_files))}; "
+                f"unexpected/duplicate files: {sorted(map(str, actual_files - expected_files))}"
+            )
+    else:
+        metadata_lookup = load_metadata_lookup(metadata_path)
+        catalogue_item_ids = load_catalogue_item_ids(catalogue_path)
 
     print("=" * 72)
     print("QLORA CHECKPOINT SELECTION")
@@ -836,99 +879,106 @@ def main() -> None:
     print(f"Model:              {model_name}")
     print(f"Checkpoints:        {len(checkpoints)}")
     print(f"Validation users:   {len(validation_records):,}")
-    print(f"Catalogue items:    {len(catalogue_item_ids):,}")
+    if not args.aggregate:
+        print(f"Catalogue items:    {len(catalogue_item_ids):,}")
+    print(f"Shard:              {args.shard_index + 1}/{args.num_shards}")
+    print(f"Full population:    {len(population):,}")
+    print(f"Shard run:          {args.shard_run}")
     print(f"Top K:              {top_k}")
     print(f"Beam width:         {num_beams}")
     print(f"Batch size:         {batch_size}")
     print(f"Prompt history:     latest {max_history_length} items")
     print("History exclusion:  complete real history")
-    print(f"GPU:                {torch.cuda.get_device_name(0)}")
+    if not args.aggregate:
+        print(f"GPU:                {torch.cuda.get_device_name(0)}")
     print()
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
-        trust_remote_code=bool(
-            nested_value(
-                config,
-                "model.trust_remote_code",
-                default=False,
-            )
-        ),
-        use_fast=True,
-    )
+    if not args.aggregate:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=bool(
+                nested_value(
+                    config,
+                    "model.trust_remote_code",
+                    default=False,
+                )
+            ),
+            use_fast=True,
+        )
 
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token = tokenizer.eos_token
 
-    tokenizer.padding_side = "left"
-    tokenizer.truncation_side = "left"
+        tokenizer.padding_side = "left"
+        tokenizer.truncation_side = "left"
 
-    compute_dtype = select_compute_dtype(
-        str(
-            nested_value(
-                config,
-                "quantization.compute_dtype",
-                default="auto",
+        compute_dtype = select_compute_dtype(
+            str(
+                nested_value(
+                    config,
+                    "quantization.compute_dtype",
+                    default="auto",
+                )
             )
         )
-    )
 
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=bool(
-            nested_value(
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=bool(
+                nested_value(
+                    config,
+                    "quantization.use_double_quant",
+                    default=True,
+                )
+            ),
+            bnb_4bit_compute_dtype=compute_dtype,
+        )
+
+        print("Loading base model in 4-bit...")
+
+        base_model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=quantization_config,
+            dtype=compute_dtype,
+            trust_remote_code=bool(
+                nested_value(
+                    config,
+                    "model.trust_remote_code",
+                    default=False,
+                )
+            ),
+            low_cpu_mem_usage=True,
+            device_map={"": torch.cuda.current_device()},
+            attn_implementation=nested_value(
                 config,
-                "quantization.use_double_quant",
-                default=True,
-            )
-        ),
-        bnb_4bit_compute_dtype=compute_dtype,
-    )
+                "model.attention_implementation",
+                default="sdpa",
+            ),
+        )
 
-    print("Loading base model in 4-bit...")
+        base_model.config.use_cache = True
 
-    base_model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        quantization_config=quantization_config,
-        dtype=compute_dtype,
-        trust_remote_code=bool(
-            nested_value(
-                config,
-                "model.trust_remote_code",
-                default=False,
-            )
-        ),
-        low_cpu_mem_usage=True,
-        device_map={"": torch.cuda.current_device()},
-        attn_implementation=nested_value(
-            config,
-            "model.attention_implementation",
-            default="sdpa",
-        ),
-    )
+        print("Building full-catalogue decoding constraint...")
 
-    base_model.config.use_cache = True
+        catalogue_constraint = CatalogueTokenConstraint(
+            tokenizer=tokenizer,
+            item_ids=catalogue_item_ids,
+        )
 
-    print("Building full-catalogue decoding constraint...")
+        history_constraint = HistoryAwareConstraint(
+            catalogue_constraint
+        )
 
-    catalogue_constraint = CatalogueTokenConstraint(
-        tokenizer=tokenizer,
-        item_ids=catalogue_item_ids,
-    )
+        selection_directory = (
+            output_directory / "validation_selection"
+        )
+        selection_directory.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-    history_constraint = HistoryAwareConstraint(
-        catalogue_constraint
-    )
-
-    selection_directory = (
-        output_directory / "validation_selection"
-    )
-    selection_directory.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
+    aggregation_evaluation_seconds = 0.0
     model = None
     checkpoint_results: list[dict[str, Any]] = []
 
@@ -942,37 +992,61 @@ def main() -> None:
         print(f"Evaluating: {checkpoint_path.name}")
         print("-" * 72)
 
-        if model is None:
-            model = PeftModel.from_pretrained(
-                base_model,
-                str(checkpoint_path),
-                adapter_name=adapter_name,
-                is_trainable=False,
+        if args.aggregate:
+            payloads = [read_json(shard_path(
+                shard_directory, identity, checkpoint_path, args.num_shards, index
+            )) for index in range(args.num_shards)]
+            metrics, predictions = aggregate_payloads(
+                payloads, identity, checkpoint_path, args.num_shards, population
             )
+            aggregation_evaluation_seconds += max(p["elapsed_seconds"] for p in payloads)
         else:
-            model.load_adapter(
-                str(checkpoint_path),
-                adapter_name=adapter_name,
-                is_trainable=False,
-            )
+            if args.shard_run:
+                destination = shard_path(shard_directory, identity, checkpoint_path,
+                                         args.num_shards, args.shard_index)
+                if destination.exists():
+                    raise FileExistsError(f"Shard already exists: {destination}; use a new run ID")
+            if model is None:
+                model = PeftModel.from_pretrained(
+                    base_model,
+                    str(checkpoint_path),
+                    adapter_name=adapter_name,
+                    is_trainable=False,
+                )
+            else:
+                model.load_adapter(
+                    str(checkpoint_path),
+                    adapter_name=adapter_name,
+                    is_trainable=False,
+                )
 
-        model.set_adapter(adapter_name)
-        model.eval()
+            model.set_adapter(adapter_name)
+            model.eval()
 
-        metrics, predictions = evaluate_adapter(
-            model=model,
-            tokenizer=tokenizer,
-            validation_records=validation_records,
-            metadata_lookup=metadata_lookup,
-            catalogue_constraint=catalogue_constraint,
-            history_constraint=history_constraint,
-            max_history_length=max_history_length,
-            max_sequence_length=max_sequence_length,
-            batch_size=batch_size,
-            top_k=top_k,
-            num_beams=num_beams,
-            length_penalty=length_penalty,
-        )
+            with torch.inference_mode():
+                metrics, predictions = evaluate_adapter(
+                    model=model,
+                    tokenizer=tokenizer,
+                    validation_records=validation_records,
+                    metadata_lookup=metadata_lookup,
+                    catalogue_constraint=catalogue_constraint,
+                    history_constraint=history_constraint,
+                    max_history_length=max_history_length,
+                    max_sequence_length=max_sequence_length,
+                    batch_size=batch_size,
+                    top_k=top_k,
+                    num_beams=num_beams,
+                    length_penalty=length_penalty,
+                )
+
+        if args.shard_run and not args.aggregate:
+            atomic_shard_write(destination, make_payload(
+                identity, checkpoint_path, args.num_shards, args.shard_index,
+                indices, predictions, metrics["elapsed_seconds"],
+            ))
+            print(f"Completed shard: {destination}", flush=True)
+            torch.cuda.empty_cache()
+            continue
 
         prediction_path = (
             selection_directory
@@ -1010,7 +1084,12 @@ def main() -> None:
             f"{metrics[f'mrr@{top_k}']:.6f}"
         )
 
-        torch.cuda.empty_cache()
+        if not args.aggregate:
+            torch.cuda.empty_cache()
+
+    if args.shard_run and not args.aggregate:
+        print("All checkpoint shards completed; no selection summary written by this worker.")
+        return
 
     checkpoint_results.sort(
         key=lambda result: tuple(
@@ -1053,6 +1132,13 @@ def main() -> None:
         ),
         "best_metrics": best_result["metrics"],
         "all_checkpoints": checkpoint_results,
+        "execution": {
+            "num_shards": args.num_shards, "shard_run": args.shard_run,
+            "generation_batch_size": batch_size,
+            "runtime_note": ("Aggregation plus sum of per-checkpoint maximum shard evaluation times; "
+                             "excludes queue/model-loading time" if args.aggregate
+                             else "Single-process wall time"),
+        },
     }
 
     summary_path = (
@@ -1071,7 +1157,7 @@ def main() -> None:
     training_metrics = run_summary.get("training_metrics", {})
     validation_metrics = run_summary.get("validation_metrics", {})
     selection_runtime_seconds = (
-        time.monotonic() - selection_started_at
+        time.monotonic() - selection_started_at + aggregation_evaluation_seconds
     )
     training_runtime_seconds = run_summary.get("runtime_seconds")
 
