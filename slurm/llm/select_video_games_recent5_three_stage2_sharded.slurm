@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=vg-stage2-select
-#SBATCH --partition=batch
+#SBATCH --partition=bigbatch
+#SBATCH --exclude=mscluster74
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=28G
-#SBATCH --time=30:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=slurm-%x-%A_%a.out
 #SBATCH --error=slurm-%x-%A_%a.err
 

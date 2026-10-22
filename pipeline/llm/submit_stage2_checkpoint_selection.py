@@ -15,7 +15,7 @@ from common import load_yaml, resolve_project_path
 
 
 def submission_commands(config, *, num_shards=8, batch_size=4, expected_users=109258,
-                        partition="batch", nodelist=None, max_parallel=4,
+                        partition="bigbatch", nodelist=None, max_parallel=4,
                         wall_time="30:00:00", run_id=None):
     if num_shards < 1 or batch_size < 1 or expected_users < num_shards:
         raise ValueError("Require positive batch/shard counts and at least one user per shard")
@@ -42,7 +42,7 @@ def main():
     parser.add_argument("--num-shards", type=int, default=8)
     parser.add_argument("--generation-batch-size", type=int, default=4)
     parser.add_argument("--expected-users", type=int, default=109258)
-    parser.add_argument("--partition", default="batch")
+    parser.add_argument("--partition", default="bigbatch")
     parser.add_argument("--nodelist", help="Optional user-verified node list; no node is pinned by default")
     parser.add_argument("--max-parallel", type=int, default=4,
                         help="Maximum simultaneous array workers; Slurm may run fewer")
