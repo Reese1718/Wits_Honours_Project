@@ -26,18 +26,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-import torch
 import yaml
-from peft import PeftModel
 from tqdm.auto import tqdm
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    BitsAndBytesConfig,
-)
+
 
 
 from common import build_recommendation_messages
+from checkpoint_selection_shards import shard_indices
+from recommendation_generation_shards import (
+    generation_identity, generation_shard_path, generate_shard, load_and_merge,
+    publish_merged,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -811,7 +810,6 @@ def load_model_and_tokenizer(
 # Recommendation generation
 # ---------------------------------------------------------------------------
 
-@torch.inference_mode()
 def generate_batch(
     model: PeftModel,
     tokenizer: AutoTokenizer,
@@ -1017,7 +1015,23 @@ def parse_arguments() -> argparse.Namespace:
         help="Override experiment.seed from the YAML configuration.",
     )
 
-    return parser.parse_args()
+    parser.add_argument("--num-shards", type=int, default=1)
+    parser.add_argument("--shard-index", type=int, default=0)
+    parser.add_argument("--shard-run", help="Unique run ID for isolated shard results")
+    parser.add_argument("--merge", action="store_true", help="CPU-only merge of completed shards")
+    parser.add_argument("--generation-batch-size", type=int, default=None)
+    parser.add_argument("--expected-users", type=int, default=None)
+    args = parser.parse_args()
+    shard_indices(0, args.num_shards, args.shard_index)
+    if (args.num_shards > 1 or args.merge) and not args.shard_run:
+        parser.error("Sharded execution requires --shard-run")
+    if args.shard_run and (not args.shard_run.replace("-", "").replace("_", "").isalnum()):
+        parser.error("Run ID must contain only letters, numbers, underscores and hyphens")
+    if args.shard_run and args.max_users is not None:
+        parser.error("Sharded final generation does not permit --max-users")
+    if args.merge and args.shard_index != 0:
+        parser.error("Merge does not accept a nonzero shard index")
+    return args
 
 
 def main() -> None:
@@ -1039,9 +1053,14 @@ def main() -> None:
         else int(nested_value(config, "experiment.seed", default=42))
     )
     random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    if not args.merge:
+        global torch, PeftModel, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        import torch
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
 
     dataset_name = dataset_name_from_config(config)
 
@@ -1157,6 +1176,9 @@ def main() -> None:
     batch_size = int(
         nested_value(config, "generation.batch_size", default=4)
     )
+
+    if args.generation_batch_size is not None:
+        batch_size = args.generation_batch_size
 
     max_new_tokens = int(
         nested_value(
@@ -1288,6 +1310,55 @@ def main() -> None:
 
     print(f"Test records: {len(test_records):,}")
 
+    if args.expected_users is not None and len(test_records) != args.expected_users:
+        raise ValueError(f"Expected {args.expected_users} test users; found {len(test_records)}")
+    identity = None
+    if args.shard_run:
+        population = [test_record_values(record) for record in test_records]
+        identity = generation_identity(
+            config, model_name, selected_checkpoint, selection_file, test_file,
+            metadata_file, catalogue_file, population, {
+                "top_k": top_k, "num_beams": num_beams, "batch_size": batch_size,
+                "max_new_tokens": max_new_tokens, "max_history_length": max_history_length,
+                "maximum_input_length": maximum_input_length,
+                "exclude_history_items": exclude_history_items, "length_penalty": length_penalty,
+                "do_sample": False, "early_stopping": True, "seed": seed,
+            },
+        )
+        shard_directory = predictions_file.parent / "shards" / args.shard_run
+        for final_path in (predictions_file, summary_file):
+            if final_path.exists() and not args.overwrite:
+                raise FileExistsError(f"Existing final output: {final_path}; explicit --overwrite required")
+        print(f"Shard run:           {args.shard_run}")
+        print(f"Shard:               {args.shard_index + 1}/{args.num_shards}")
+        print(f"Users in shard:      {len(shard_indices(len(test_records), args.num_shards, args.shard_index)):,}")
+        if args.merge:
+            merged, payloads = load_and_merge(shard_directory, identity, population, args.num_shards)
+            elapsed = max(payload["elapsed_seconds"] for payload in payloads)
+            summary = {
+                "dataset": dataset_name, "config_file": str(config_path), "base_model": model_name,
+                "selected_checkpoint": str(selected_checkpoint),
+                "checkpoint_selection_file": str(selection_file), "test_split_file": str(test_file),
+                "catalogue_file": str(catalogue_file), "metadata_file": str(metadata_file),
+                "predictions_file": str(predictions_file), "test_record_count": len(test_records),
+                "completed_record_count": len(merged), "generated_this_run": len(merged),
+                "requested_top_k": top_k, "num_beams": num_beams, "batch_size": batch_size,
+                "max_new_tokens": max_new_tokens, "max_history_length": max_history_length,
+                "maximum_input_length": maximum_input_length,
+                "exclude_history_items": exclude_history_items,
+                "short_recommendation_rows_this_run": sum(
+                    row["generated_recommendation_count"] < top_k for row in merged),
+                "elapsed_seconds_this_run": elapsed,
+                "records_per_second_this_run": None,
+                "history_exclusion_scope": "complete_real_history" if exclude_history_items else "none",
+                "seed": seed, "debug_max_users": None,
+                "sharded_execution": {"run_id": args.shard_run, "num_shards": args.num_shards,
+                    "identity": identity, "runtime_note": "Maximum worker generation time; excludes queue/loading time"},
+            }
+            publish_merged(predictions_file, merged, summary, overwrite=args.overwrite)
+            print(f"STEP 06 MERGE COMPLETE: {len(merged):,} users; {predictions_file}", flush=True)
+            return
+
     print("Loading metadata...")
     metadata = load_metadata(metadata_file)
     print(f"Metadata records: {len(metadata):,}")
@@ -1319,6 +1390,27 @@ def main() -> None:
                 f"Test target {target!r} for user {user_id} is not in "
                 f"the catalogue."
             )
+
+    if args.shard_run:
+        destination = generation_shard_path(shard_directory, identity, args.num_shards, args.shard_index)
+        if destination.exists():
+            raise FileExistsError(f"Shard already exists: {destination}; use a fresh run ID")
+        if not torch.cuda.is_available():
+            raise RuntimeError("Sharded Step 06 requires CUDA")
+        model, tokenizer, compute_dtype = load_model_and_tokenizer(
+            model_name=model_name, checkpoint_path=selected_checkpoint, config=config)
+        trie = CatalogueTokenTrie(tokenizer=tokenizer, item_ids=catalogue)
+        def generate(records):
+            with torch.inference_mode():
+                return generate_batch(
+                    model=model, tokenizer=tokenizer, trie=trie, catalogue_set=catalogue_set,
+                    records=records, metadata=metadata, max_history_length=max_history_length,
+                    top_k=top_k, num_beams=num_beams, max_new_tokens=max_new_tokens,
+                    maximum_input_length=maximum_input_length,
+                    exclude_history_items=exclude_history_items, length_penalty=length_penalty)
+        generate_shard(destination, identity, test_records, population, args.num_shards,
+                       args.shard_index, batch_size, generate)
+        return
 
     predictions_file.parent.mkdir(
         parents=True,
@@ -1388,21 +1480,22 @@ def main() -> None:
         for start in progress:
             batch = pending_records[start : start + batch_size]
 
-            batch_results = generate_batch(
-                model=model,
-                tokenizer=tokenizer,
-                trie=trie,
-                catalogue_set=catalogue_set,
-                records=batch,
-                metadata=metadata,
-                max_history_length=max_history_length,
-                top_k=top_k,
-                num_beams=num_beams,
-                max_new_tokens=max_new_tokens,
-                maximum_input_length=maximum_input_length,
-                exclude_history_items=exclude_history_items,
-                length_penalty=length_penalty,
-            )
+            with torch.inference_mode():
+                batch_results = generate_batch(
+                    model=model,
+                    tokenizer=tokenizer,
+                    trie=trie,
+                    catalogue_set=catalogue_set,
+                    records=batch,
+                    metadata=metadata,
+                    max_history_length=max_history_length,
+                    top_k=top_k,
+                    num_beams=num_beams,
+                    max_new_tokens=max_new_tokens,
+                    maximum_input_length=maximum_input_length,
+                    exclude_history_items=exclude_history_items,
+                    length_penalty=length_penalty,
+                )
 
             for result in batch_results:
                 if (
