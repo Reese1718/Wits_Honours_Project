@@ -1,0 +1,203 @@
+{
+  "experiment_name": "llama_video_games_recent5_three_stage2_fast_3090_lr1e4_r16_a32_d005_e1",
+  "dataset": "Video Games",
+  "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+  "seed": 42,
+  "training_examples": 292890,
+  "validation_examples": 5000,
+  "training_loss": 0.19978174935112308,
+  "validation_loss": 1.6039414405822754,
+  "training_metrics": {
+    "train_runtime": 7819.3833,
+    "train_samples_per_second": 37.457,
+    "train_steps_per_second": 0.585,
+    "total_flos": 1.1400549145115689e+18,
+    "train_loss": 0.19978174935112308,
+    "epoch": 1.0
+  },
+  "validation_metrics": {
+    "eval_loss": 1.6039414405822754,
+    "eval_runtime": 262.2624,
+    "eval_samples_per_second": 19.065,
+    "eval_steps_per_second": 2.383,
+    "eval_entropy": 1.6675453109741212,
+    "eval_num_tokens": 7411963.0,
+    "eval_mean_token_accuracy": 0.6392902979850769,
+    "epoch": 1.0
+  },
+  "runtime_seconds": 8184.688435090706,
+  "training_runtime_seconds": 7821.0537866111845,
+  "sequence_length_diagnostics": {
+    "train": {
+      "examples": 292890,
+      "max_observed": 513,
+      "p95": 301,
+      "p99": 370,
+      "max_sequence_length": 512,
+      "examples_requiring_truncation": 1,
+      "percentage_requiring_truncation": 0.0003414251084024719
+    },
+    "validation": {
+      "examples": 5000,
+      "max_observed": 427,
+      "p95": 334,
+      "p99": 382,
+      "max_sequence_length": 512,
+      "examples_requiring_truncation": 0,
+      "percentage_requiring_truncation": 0.0
+    }
+  },
+  "best_validation_loss_checkpoint": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-4577",
+  "best_validation_loss": 1.6039414405822754,
+  "saved_adapter": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/best_validation_loss_adapter",
+  "parameter_statistics": {
+    "trainable_parameters": 24313856,
+    "total_parameters": 1827777536,
+    "trainable_percentage": 1.330241537665993
+  },
+  "quantization": {
+    "load_in_4bit": true,
+    "quant_type": "nf4",
+    "double_quantization": true,
+    "compute_dtype": "torch.float16"
+  },
+  "lora": {
+    "rank": 16,
+    "alpha": 32,
+    "dropout": 0.05,
+    "bias": "none",
+    "target_modules": "all-linear"
+  },
+  "hardware": {
+    "gpu_index": 0,
+    "gpu_name": "NVIDIA GeForce RTX 3090",
+    "compute_capability": [
+      8,
+      6
+    ],
+    "total_memory_bytes": 25288769536,
+    "total_memory_gib": 23.552001953125,
+    "bf16_supported": true,
+    "local_rank": -1,
+    "global_rank": 0,
+    "world_size": 1
+  },
+  "software": {
+    "python": "3.11.16 (main, Sep  1 2026, 14:18:37) [Clang 22.1.3 ]",
+    "platform": "Linux-7.0.0-29-generic-x86_64-with-glibc2.43",
+    "torch": "2.7.0+cu126",
+    "transformers": "5.17.0",
+    "datasets": "5.0.1",
+    "peft": "0.20.0",
+    "trl": "1.12.0",
+    "accelerate": "1.15.0",
+    "bitsandbytes": "0.50.2"
+  },
+  "config_file": "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/configs/llm/tuning/generated/fast_promoted/stage2_fast_3090/llama_lr1e4_r16_a32_d005_e1_full.yaml",
+  "config": {
+    "experiment": {
+      "name": "llama_video_games_recent5_three_stage2_fast_3090_lr1e4_r16_a32_d005_e1",
+      "dataset": "Video Games",
+      "seed": 42
+    },
+    "model": {
+      "name_or_path": "meta-llama/Llama-3.2-3B-Instruct",
+      "name": "meta-llama/Llama-3.2-3B-Instruct",
+      "trust_remote_code": false,
+      "attention_implementation": "sdpa",
+      "eos_token": "<|eot_id|>"
+    },
+    "data": {
+      "train_file": "/datasets/dnaidoo3/Video_Games/processed/llm/sft/train_recent5_three_per_user.jsonl",
+      "validation_file": "/datasets/dnaidoo3/Video_Games/processed/llm/sft/validation_recent5.jsonl",
+      "preprocessing_workers": 4,
+      "max_train_samples": null,
+      "max_validation_samples": 5000,
+      "shuffle_before_sampling": true,
+      "metadata_file": "/datasets/dnaidoo3/Video_Games/exports/Video_Games_metadata_lookup.json",
+      "catalogue_file": "/datasets/dnaidoo3/Video_Games/processed/llm/splits/item_catalogue.json",
+      "validation_split_file": "/datasets/dnaidoo3/Video_Games/processed/llm/splits/validation.jsonl",
+      "test_split_file": "/datasets/dnaidoo3/Video_Games/processed/llm/splits/test.jsonl"
+    },
+    "quantization": {
+      "compute_dtype": "float16",
+      "quant_type": "nf4",
+      "use_double_quant": true
+    },
+    "lora": {
+      "rank": 16,
+      "alpha": 32,
+      "dropout": 0.05,
+      "bias": "none",
+      "target_modules": "all-linear"
+    },
+    "training": {
+      "output_dir": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1",
+      "epochs": 1,
+      "train_batch_size": 2,
+      "eval_batch_size": 8,
+      "gradient_accumulation_steps": 32,
+      "learning_rate": 0.0001,
+      "weight_decay": 0.0,
+      "warmup_ratio": 0.03,
+      "lr_scheduler_type": "cosine",
+      "optimizer": "paged_adamw_8bit",
+      "max_grad_norm": 0.3,
+      "max_sequence_length": 512,
+      "gradient_checkpointing": true,
+      "packing": false,
+      "logging_steps": 10,
+      "eval_strategy": "epoch",
+      "save_strategy": "steps",
+      "save_total_limit": 2,
+      "dataloader_workers": 4,
+      "report_to": "none",
+      "save_steps": 500
+    },
+    "checkpoint_selection": {
+      "top_k": 10,
+      "num_beams": 20,
+      "batch_size": 4,
+      "max_validation_users": null,
+      "max_history_length": 5,
+      "exclude_history_items": true,
+      "length_penalty": 1.0,
+      "sampling_seed": 20261008,
+      "tie_breakers": [
+        "hit",
+        "mrr"
+      ]
+    },
+    "generation": {
+      "top_k": 10,
+      "num_beams": 20,
+      "batch_size": 4,
+      "max_history_length": 5,
+      "max_new_tokens": 24,
+      "exclude_history_items": true,
+      "length_penalty": 1.0
+    },
+    "tuning": {
+      "workflow": "video_games_recent5_three_fast",
+      "stage": 2,
+      "model_key": "llama",
+      "candidate_id": "lr1e4_r16_a32_d005_e1",
+      "manifest": "pipeline/configs/llm/tuning/video_games_recent5_three_sweep.yaml",
+      "execution": "rtx_3090",
+      "parent_stage1_experiment": "llama_video_games_recent5_three_stage1_fast_3090_lr1e4_r16_a32_d005_e1",
+      "parent_stage1_rank": 1
+    }
+  },
+  "training_plan": {
+    "world_size": 1,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 32,
+    "effective_global_batch_size": 64,
+    "epochs": 1.0,
+    "estimated_optimizer_steps": 4577,
+    "learning_rate": 0.0001,
+    "warmup_ratio": 0.03,
+    "warmup_steps": 138,
+    "shuffle_before_sampling": true
+  }
+}

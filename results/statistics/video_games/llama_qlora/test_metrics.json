@@ -1,0 +1,115 @@
+{
+  "dataset": "Video Games",
+  "model": "meta-llama/Llama-3.2-3B-Instruct",
+  "selected_checkpoint": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-4577",
+  "evaluation_protocol": {
+    "name": "leave-one-out next-item prediction",
+    "test_history": "items 1 through n-1",
+    "test_target": "item n",
+    "candidate_strategy": "full-catalogue constrained generation",
+    "history_items_excluded": true,
+    "relevant_items_per_user": 1,
+    "cutoffs": [
+      1,
+      5,
+      10
+    ]
+  },
+  "input_files": {
+    "config": "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/configs/llm/tuning/generated/fast_promoted/stage2_fast_3090/llama_lr1e4_r16_a32_d005_e1_full.yaml",
+    "test_split": "/datasets/dnaidoo3/Video_Games/processed/llm/splits/test.jsonl",
+    "predictions": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/test_predictions/test_predictions.jsonl",
+    "catalogue": "/datasets/dnaidoo3/Video_Games/processed/llm/splits/item_catalogue.json"
+  },
+  "counts": {
+    "test_records": 109258,
+    "prediction_records": 109258,
+    "evaluated_users": 109258,
+    "missing_prediction_records": 0,
+    "catalogue_items": 54595,
+    "targets_found_in_full_generated_list": 3243
+  },
+  "metrics": {
+    "Hit@1": 0.007688224203262004,
+    "Recall@1": 0.007688224203262004,
+    "NDCG@1": 0.007688224203262004,
+    "MRR@1": 0.007688224203262004,
+    "Hit@5": 0.021371432755496165,
+    "Recall@5": 0.021371432755496165,
+    "NDCG@5": 0.014611039314528286,
+    "MRR@5": 0.01239421064513968,
+    "Hit@10": 0.02968203701330795,
+    "Recall@10": 0.02968203701330795,
+    "NDCG@10": 0.017339413218721393,
+    "MRR@10": 0.013543841328534416
+  },
+  "confidence_intervals_95": {
+    "Hit@1": [
+      0.007170297231498309,
+      0.008206151175025699
+    ],
+    "Recall@1": [
+      0.007170297231498309,
+      0.008206151175025699
+    ],
+    "NDCG@1": [
+      0.007170297231498309,
+      0.008206151175025699
+    ],
+    "MRR@1": [
+      0.007170297231498309,
+      0.008206151175025699
+    ],
+    "Hit@5": [
+      0.02051388720179306,
+      0.02222897830919927
+    ],
+    "Recall@5": [
+      0.02051388720179306,
+      0.02222897830919927
+    ],
+    "NDCG@5": [
+      0.013986355609920668,
+      0.015235723019135904
+    ],
+    "MRR@5": [
+      0.011821185895357128,
+      0.012967235394922233
+    ],
+    "Hit@10": [
+      0.0286757188244804,
+      0.0306883552021355
+    ],
+    "Recall@10": [
+      0.0286757188244804,
+      0.0306883552021355
+    ],
+    "NDCG@10": [
+      0.01669225353894963,
+      0.017986572898493158
+    ],
+    "MRR@10": [
+      0.012966729909204961,
+      0.01412095274786387
+    ]
+  },
+  "coverage": {
+    "CatalogueCoverage@1": 0.01529444088286473,
+    "CatalogueCoverage@5": 0.032237384375858595,
+    "CatalogueCoverage@10": 0.04683579082333547
+  },
+  "unique_recommendation_counts": {
+    "UniqueRecommendedItems@1": 835,
+    "UniqueRecommendedItems@5": 1760,
+    "UniqueRecommendedItems@10": 2557
+  },
+  "diagnostics": {
+    "average_recommendation_count": 8.821944388511596,
+    "rows_shorter_than_maximum_cutoff": 62510,
+    "duplicate_recommendation_rows": 0,
+    "invalid_recommendation_items": 0,
+    "history_overlap_items": 0,
+    "targets_already_in_history": 1069,
+    "incomplete_debug_evaluation": false
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "experiment": "qwen_video_games_recent5_three_stage2_fast_3090_lr1e4_r16_a32_d005_e1",
+  "dataset": "Video Games",
+  "base_model": "Qwen/Qwen2.5-3B-Instruct",
+  "selection_metric": "ndcg@10",
+  "selection_tie_breakers": [
+    "hit@10",
+    "mrr@10"
+  ],
+  "validation_users": 109258,
+  "validation_sampling_seed": 20261008,
+  "validation_sample_sha256": "3a8934a449fddc2fbdb125adf7b1a82ebd3696e2d063b4068473acf2082a8ef6",
+  "full_validation_set_used": true,
+  "max_prompt_history_length": 5,
+  "history_exclusion_scope": "complete_real_history",
+  "best_checkpoint": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-4500",
+  "best_checkpoint_name": "checkpoint-4500",
+  "best_metrics": {
+    "users": 109258,
+    "hit@10": 0.0327024108074466,
+    "recall@10": 0.0327024108074466,
+    "ndcg@10": 0.018865723572973316,
+    "mrr@10": 0.014618649115665351,
+    "short_ranking_users": 22486,
+    "complete_ranking_rate": 0.794193560196965,
+    "elapsed_seconds": 79464.73669791222
+  },
+  "all_checkpoints": [
+    {
+      "checkpoint": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-4500",
+      "checkpoint_name": "checkpoint-4500",
+      "prediction_file": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-4500_predictions.jsonl",
+      "metrics_file": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-4500_metrics.json",
+      "metrics": {
+        "users": 109258,
+        "hit@10": 0.0327024108074466,
+        "recall@10": 0.0327024108074466,
+        "ndcg@10": 0.018865723572973316,
+        "mrr@10": 0.014618649115665351,
+        "short_ranking_users": 22486,
+        "complete_ranking_rate": 0.794193560196965,
+        "elapsed_seconds": 79464.73669791222
+      }
+    },
+    {
+      "checkpoint": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-4577",
+      "checkpoint_name": "checkpoint-4577",
+      "prediction_file": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-4577_predictions.jsonl",
+      "metrics_file": "/datasets/dnaidoo3/Video_Games/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-4577_metrics.json",
+      "metrics": {
+        "users": 109258,
+        "hit@10": 0.032674952863863516,
+        "recall@10": 0.032674952863863516,
+        "ndcg@10": 0.018807460569791226,
+        "mrr@10": 0.014554119316241999,
+        "short_ranking_users": 22530,
+        "complete_ranking_rate": 0.7937908436910799,
+        "elapsed_seconds": 79824.23699188232
+      }
+    }
+  ],
+  "execution": {
+    "num_shards": 8,
+    "shard_run": "7caf972ba3da4e2faed40bef8356eb55",
+    "generation_batch_size": 4,
+    "runtime_note": "Aggregation plus sum of per-checkpoint maximum shard evaluation times; excludes queue/model-loading time"
+  }
+}
