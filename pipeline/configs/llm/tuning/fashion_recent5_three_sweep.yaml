@@ -1,0 +1,38 @@
+workflow:
+  name: fashion_recent5_three_fast
+  seed: 42
+  output_root: /datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning
+  generated_config_dir: pipeline/configs/llm/tuning/generated/fashion
+  stage1_train_samples: null
+  stage1_validation_loss_samples: 1000
+  stage1_validation_recommendation_users: 1000
+  stage2_validation_loss_samples: null
+  validation_sampling_seed: 20261008
+  promote_per_model: 1
+  experiment_prefix: fashion_recent5_three
+  stage2_save_steps: 50
+  stage2_adapt_save_steps: true
+models:
+  qwen:
+    base_config: pipeline/configs/llm/qwen_fashion_recent5_three_qlora.yaml
+  llama:
+    base_config: pipeline/configs/llm/llama_fashion_recent5_three_qlora.yaml
+stage1_candidates:
+- id: lr5e5_r8_a16_d005_e1
+  learning_rate: 5.0e-05
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+  epochs: 1
+- id: lr1e4_r8_a16_d005_e1
+  learning_rate: 0.0001
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+  epochs: 1
+- id: lr1e4_r16_a32_d005_e1
+  learning_rate: 0.0001
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  epochs: 1

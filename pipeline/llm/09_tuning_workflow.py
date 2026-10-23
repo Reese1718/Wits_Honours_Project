@@ -6,6 +6,7 @@ import argparse
 import copy
 import csv
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any
@@ -131,6 +132,31 @@ def manifest_values(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return manifest, workflow
 
 
+def sample_limit(value: Any) -> int | None:
+    """A null limit means all available records, never a guessed dataset size."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or int(value) != value or int(value) <= 0:
+        raise ValueError("Sample limits must be positive integers or null (all records).")
+    return int(value)
+
+
+def stage2_save_interval(config: dict[str, Any], workflow: dict[str, Any]) -> tuple[int, int | None]:
+    interval = int(workflow.get("stage2_save_steps", 500))
+    if interval < 1:
+        raise ValueError("stage2_save_steps must be positive")
+    if not workflow.get("stage2_adapt_save_steps", False):
+        return interval, None
+    with project_path(config["data"]["train_file"]).open(encoding="utf-8") as stream:
+        count = sum(1 for line in stream if line.strip())
+    effective_batch = int(config["training"]["train_batch_size"]) * int(
+        config["training"]["gradient_accumulation_steps"])
+    steps = math.ceil(count / effective_batch)
+    if steps < 2:
+        raise ValueError("At least two optimizer steps are required for distinct periodic/final checkpoints")
+    return min(interval, max(1, steps // 2)), count
+
+
 def validate_fixed_protocol(config: dict[str, Any], path: Path) -> None:
     expected = {
         "train_file": "train_recent5_three_per_user.jsonl",
@@ -194,15 +220,15 @@ def prepare_stage1(args: argparse.Namespace) -> None:
             candidate_id = str(candidate["id"])
             config = copy.deepcopy(base)
             experiment_name = (
-                f"{model_key}_video_games_recent5_three_"
+                f"{model_key}_{workflow.get('experiment_prefix', 'video_games_recent5_three')}_"
                 f"{stage_name}_{candidate_id}"
             )
             config["experiment"]["name"] = experiment_name
             config["experiment"]["seed"] = int(workflow["seed"])
-            config["data"]["max_train_samples"] = int(
+            config["data"]["max_train_samples"] = sample_limit(
                 workflow["stage1_train_samples"]
             )
-            config["data"]["max_validation_samples"] = int(
+            config["data"]["max_validation_samples"] = sample_limit(
                 workflow["stage1_validation_loss_samples"]
             )
             config["data"]["shuffle_before_sampling"] = True
@@ -226,7 +252,7 @@ def prepare_stage1(args: argparse.Namespace) -> None:
                 config["training"]["gradient_accumulation_steps"] = 16
             config["training"]["output_dir"] = (
                 f"{output_root}/{model_key}/{stage_name}/"
-                f"{workflow['stage1_train_samples']}_samples/{candidate_id}"
+                f"{workflow['stage1_train_samples'] if workflow['stage1_train_samples'] is not None else 'all'}_samples/{candidate_id}"
             )
             config["checkpoint_selection"]["max_validation_users"] = int(
                 workflow["stage1_validation_recommendation_users"]
@@ -476,6 +502,12 @@ def rank_runs(args: argparse.Namespace) -> None:
         if not config_paths:
             raise ValueError(f"No configs found for {args.model_key}.")
 
+    scopes = {
+        (load_yaml(path)["experiment"]["dataset"], load_yaml(path).get("tuning", {}).get("workflow"))
+        for path in config_paths
+    }
+    if len(scopes) != 1:
+        raise ValueError("Cannot rank candidates from different datasets/workflows together")
     rows: list[dict[str, Any]] = []
     missing: list[str] = []
     for config_path in config_paths:
@@ -617,18 +649,22 @@ def promote_stage2(args: argparse.Namespace) -> None:
                 "single_gpu": "stage2_fast_single_gpu",
             }.get(execution, "stage2_fast")
             experiment_name = (
-                f"{model_key}_video_games_recent5_three_{stage_name}_"
+                f"{model_key}_{workflow.get('experiment_prefix', 'video_games_recent5_three')}_{stage_name}_"
                 f"{candidate_id}"
             )
             config["experiment"]["name"] = experiment_name
             config["data"]["max_train_samples"] = None
-            config["data"]["max_validation_samples"] = int(
+            config["data"]["max_validation_samples"] = sample_limit(
                 workflow["stage2_validation_loss_samples"]
             )
             config["training"]["epochs"] = 1
             config["training"]["eval_strategy"] = "epoch"
             config["training"]["save_strategy"] = "steps"
-            config["training"]["save_steps"] = 500
+            save_interval, training_count = stage2_save_interval(config, workflow)
+            config["training"]["save_steps"] = save_interval
+            if training_count is not None:
+                config["tuning"]["full_training_records"] = training_count
+                print(f"{model_key}: full training records={training_count}; save_steps={save_interval}")
             config["training"]["save_total_limit"] = 2
             config["checkpoint_selection"]["num_beams"] = 10
             config["generation"]["num_beams"] = 10
