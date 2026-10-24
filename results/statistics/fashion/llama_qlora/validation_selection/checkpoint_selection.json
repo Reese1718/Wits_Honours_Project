@@ -1,0 +1,68 @@
+{
+  "experiment": "llama_fashion_recent5_three_stage2_fast_3090_lr1e4_r16_a32_d005_e1",
+  "dataset": "Fashion",
+  "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+  "selection_metric": "ndcg@10",
+  "selection_tie_breakers": [
+    "hit@10",
+    "mrr@10"
+  ],
+  "validation_users": 3135,
+  "validation_sampling_seed": 20261008,
+  "validation_sample_sha256": "4018d2fda7fed5330fb14b5fbfe665cac4777314b3f601a64ca44431d3e66a26",
+  "full_validation_set_used": true,
+  "max_prompt_history_length": 5,
+  "history_exclusion_scope": "complete_real_history",
+  "best_checkpoint": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-124",
+  "best_checkpoint_name": "checkpoint-124",
+  "best_metrics": {
+    "users": 3135,
+    "hit@10": 0.014992025518341308,
+    "recall@10": 0.014992025518341308,
+    "ndcg@10": 0.009169546490018105,
+    "mrr@10": 0.0073531049846839325,
+    "short_ranking_users": 1696,
+    "complete_ranking_rate": 0.45901116427432215,
+    "elapsed_seconds": 2605.8495366573334
+  },
+  "all_checkpoints": [
+    {
+      "checkpoint": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-124",
+      "checkpoint_name": "checkpoint-124",
+      "prediction_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-124_predictions.jsonl",
+      "metrics_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-124_metrics.json",
+      "metrics": {
+        "users": 3135,
+        "hit@10": 0.014992025518341308,
+        "recall@10": 0.014992025518341308,
+        "ndcg@10": 0.009169546490018105,
+        "mrr@10": 0.0073531049846839325,
+        "short_ranking_users": 1696,
+        "complete_ranking_rate": 0.45901116427432215,
+        "elapsed_seconds": 2605.8495366573334
+      }
+    },
+    {
+      "checkpoint": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-100",
+      "checkpoint_name": "checkpoint-100",
+      "prediction_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-100_predictions.jsonl",
+      "metrics_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/validation_selection/checkpoint-100_metrics.json",
+      "metrics": {
+        "users": 3135,
+        "hit@10": 0.014035087719298246,
+        "recall@10": 0.014035087719298246,
+        "ndcg@10": 0.008701008207083989,
+        "mrr@10": 0.007036404141667299,
+        "short_ranking_users": 1789,
+        "complete_ranking_rate": 0.42934609250398725,
+        "elapsed_seconds": 2616.072410106659
+      }
+    }
+  ],
+  "execution": {
+    "num_shards": 1,
+    "shard_run": null,
+    "generation_batch_size": 4,
+    "runtime_note": "Single-process wall time"
+  }
+}

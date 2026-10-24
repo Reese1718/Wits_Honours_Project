@@ -1,0 +1,115 @@
+{
+  "dataset": "Fashion",
+  "model": "Qwen/Qwen2.5-3B-Instruct",
+  "selected_checkpoint": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-100",
+  "evaluation_protocol": {
+    "name": "leave-one-out next-item prediction",
+    "test_history": "items 1 through n-1",
+    "test_target": "item n",
+    "candidate_strategy": "full-catalogue constrained generation",
+    "history_items_excluded": true,
+    "relevant_items_per_user": 1,
+    "cutoffs": [
+      1,
+      5,
+      10
+    ]
+  },
+  "input_files": {
+    "config": "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/configs/llm/tuning/generated/fashion/fast_promoted/stage2_fast_3090/qwen_lr1e4_r16_a32_d005_e1_full.yaml",
+    "test_split": "/datasets/dnaidoo3/Fashion/processed/llm/splits/test.jsonl",
+    "predictions": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/test_predictions/test_predictions.jsonl",
+    "catalogue": "/datasets/dnaidoo3/Fashion/processed/llm/splits/item_catalogue.json"
+  },
+  "counts": {
+    "test_records": 3135,
+    "prediction_records": 3135,
+    "evaluated_users": 3135,
+    "missing_prediction_records": 0,
+    "catalogue_items": 12493,
+    "targets_found_in_full_generated_list": 37
+  },
+  "metrics": {
+    "Hit@1": 0.004146730462519936,
+    "Recall@1": 0.004146730462519936,
+    "NDCG@1": 0.004146730462519936,
+    "MRR@1": 0.004146730462519936,
+    "Hit@5": 0.008293460925039872,
+    "Recall@5": 0.008293460925039872,
+    "NDCG@5": 0.00605115491442737,
+    "MRR@5": 0.005332270069112175,
+    "Hit@10": 0.011802232854864434,
+    "Recall@10": 0.011802232854864434,
+    "NDCG@10": 0.007224410627873867,
+    "MRR@10": 0.005838839523050049
+  },
+  "confidence_intervals_95": {
+    "Hit@1": [
+      0.0018968618569919333,
+      0.006396599068047938
+    ],
+    "Recall@1": [
+      0.0018968618569919333,
+      0.006396599068047938
+    ],
+    "NDCG@1": [
+      0.0018968618569919333,
+      0.006396599068047938
+    ],
+    "MRR@1": [
+      0.0018968618569919333,
+      0.006396599068047938
+    ],
+    "Hit@5": [
+      0.005118297632511697,
+      0.011468624217568047
+    ],
+    "Recall@5": [
+      0.005118297632511697,
+      0.011468624217568047
+    ],
+    "NDCG@5": [
+      0.0035744378543864277,
+      0.008527871974468313
+    ],
+    "MRR@5": [
+      0.002987280247499973,
+      0.007677259890724378
+    ],
+    "Hit@10": [
+      0.008021198713787845,
+      0.015583266995941022
+    ],
+    "Recall@10": [
+      0.008021198713787845,
+      0.015583266995941022
+    ],
+    "NDCG@10": [
+      0.004655801673094255,
+      0.00979301958265348
+    ],
+    "MRR@10": [
+      0.003475889681503265,
+      0.008201789364596833
+    ]
+  },
+  "coverage": {
+    "CatalogueCoverage@1": 0.0794044665012407,
+    "CatalogueCoverage@5": 0.18178179780677178,
+    "CatalogueCoverage@10": 0.2402145201312735
+  },
+  "unique_recommendation_counts": {
+    "UniqueRecommendedItems@1": 992,
+    "UniqueRecommendedItems@5": 2271,
+    "UniqueRecommendedItems@10": 3001
+  },
+  "diagnostics": {
+    "average_recommendation_count": 9.757894736842106,
+    "rows_shorter_than_maximum_cutoff": 514,
+    "duplicate_recommendation_rows": 0,
+    "invalid_recommendation_items": 0,
+    "history_overlap_items": 0,
+    "targets_already_in_history": 27,
+    "incomplete_debug_evaluation": false
+  }
+}

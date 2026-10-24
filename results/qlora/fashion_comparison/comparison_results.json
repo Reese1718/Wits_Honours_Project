@@ -1,0 +1,225 @@
+{
+  "primary_metric": "NDCG@10",
+  "experiment_count": 2,
+  "datasets": [
+    "Fashion"
+  ],
+  "metric_names": [
+    "Hit@1",
+    "Recall@1",
+    "NDCG@1",
+    "MRR@1",
+    "CatalogueCoverage@1",
+    "Hit@5",
+    "Recall@5",
+    "NDCG@5",
+    "MRR@5",
+    "CatalogueCoverage@5",
+    "Hit@10",
+    "Recall@10",
+    "NDCG@10",
+    "MRR@10",
+    "CatalogueCoverage@10"
+  ],
+  "experiments": [
+    {
+      "source_type": "llm",
+      "experiment": "Qwen QLoRA",
+      "config_name": "qwen_lr1e4_r16_a32_d005_e1_full",
+      "config_file": "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/configs/llm/tuning/generated/fashion/fast_promoted/stage2_fast_3090/qwen_lr1e4_r16_a32_d005_e1_full.yaml",
+      "dataset": "Fashion",
+      "model": "Qwen/Qwen2.5-3B-Instruct",
+      "model_family": "Qwen",
+      "selected_checkpoint": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-100",
+      "metrics_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/test_predictions/test_metrics.json",
+      "per_user_metrics_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/qwen/stage2_fast_3090/lr1e4_r16_a32_d005_e1/test_predictions/per_user_metrics.jsonl",
+      "evaluated_users": 3135,
+      "metrics": {
+        "Hit@1": 0.004146730462519936,
+        "Recall@1": 0.004146730462519936,
+        "NDCG@1": 0.004146730462519936,
+        "MRR@1": 0.004146730462519936,
+        "Hit@5": 0.008293460925039872,
+        "Recall@5": 0.008293460925039872,
+        "NDCG@5": 0.00605115491442737,
+        "MRR@5": 0.005332270069112175,
+        "Hit@10": 0.011802232854864434,
+        "Recall@10": 0.011802232854864434,
+        "NDCG@10": 0.007224410627873867,
+        "MRR@10": 0.005838839523050049,
+        "CatalogueCoverage@1": 0.0794044665012407,
+        "CatalogueCoverage@5": 0.18178179780677178,
+        "CatalogueCoverage@10": 0.2402145201312735
+      },
+      "confidence_intervals_95": {
+        "Hit@1": [
+          0.0018968618569919333,
+          0.006396599068047938
+        ],
+        "Recall@1": [
+          0.0018968618569919333,
+          0.006396599068047938
+        ],
+        "NDCG@1": [
+          0.0018968618569919333,
+          0.006396599068047938
+        ],
+        "MRR@1": [
+          0.0018968618569919333,
+          0.006396599068047938
+        ],
+        "Hit@5": [
+          0.005118297632511697,
+          0.011468624217568047
+        ],
+        "Recall@5": [
+          0.005118297632511697,
+          0.011468624217568047
+        ],
+        "NDCG@5": [
+          0.0035744378543864277,
+          0.008527871974468313
+        ],
+        "MRR@5": [
+          0.002987280247499973,
+          0.007677259890724378
+        ],
+        "Hit@10": [
+          0.008021198713787845,
+          0.015583266995941022
+        ],
+        "Recall@10": [
+          0.008021198713787845,
+          0.015583266995941022
+        ],
+        "NDCG@10": [
+          0.004655801673094255,
+          0.00979301958265348
+        ],
+        "MRR@10": [
+          0.003475889681503265,
+          0.008201789364596833
+        ]
+      },
+      "diagnostics": {
+        "average_recommendation_count": 9.757894736842106,
+        "rows_shorter_than_maximum_cutoff": 514,
+        "duplicate_recommendation_rows": 0,
+        "invalid_recommendation_items": 0,
+        "history_overlap_items": 0,
+        "targets_already_in_history": 27,
+        "incomplete_debug_evaluation": false
+      },
+      "rank": 1
+    },
+    {
+      "source_type": "llm",
+      "experiment": "Llama QLoRA",
+      "config_name": "llama_lr1e4_r16_a32_d005_e1_full",
+      "config_file": "/home-mscluster/dnaidoo3/Wits_Honours_Project/pipeline/configs/llm/tuning/generated/fashion/fast_promoted/stage2_fast_3090/llama_lr1e4_r16_a32_d005_e1_full.yaml",
+      "dataset": "Fashion",
+      "model": "meta-llama/Llama-3.2-3B-Instruct",
+      "model_family": "Llama",
+      "selected_checkpoint": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/checkpoint-124",
+      "metrics_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/test_predictions/test_metrics.json",
+      "per_user_metrics_file": "/datasets/dnaidoo3/Fashion/processed/llm/checkpoints/tuning/llama/stage2_fast_3090/lr1e4_r16_a32_d005_e1/test_predictions/per_user_metrics.jsonl",
+      "evaluated_users": 3135,
+      "metrics": {
+        "Hit@1": 0.0019138755980861245,
+        "Recall@1": 0.0019138755980861245,
+        "NDCG@1": 0.0019138755980861245,
+        "MRR@1": 0.0019138755980861245,
+        "Hit@5": 0.005741626794258373,
+        "Recall@5": 0.005741626794258373,
+        "NDCG@5": 0.0039005107453997786,
+        "MRR@5": 0.0032908027644869744,
+        "Hit@10": 0.00861244019138756,
+        "Recall@10": 0.00861244019138756,
+        "NDCG@10": 0.004856509186824454,
+        "MRR@10": 0.003701805017594491,
+        "CatalogueCoverage@1": 0.04298407107980469,
+        "CatalogueCoverage@5": 0.08412711118226207,
+        "CatalogueCoverage@10": 0.1062995277355319
+      },
+      "confidence_intervals_95": {
+        "Hit@1": [
+          0.00038367827848551864,
+          0.0034440729176867303
+        ],
+        "Recall@1": [
+          0.00038367827848551864,
+          0.0034440729176867303
+        ],
+        "NDCG@1": [
+          0.00038367827848551864,
+          0.0034440729176867303
+        ],
+        "MRR@1": [
+          0.00038367827848551864,
+          0.0034440729176867303
+        ],
+        "Hit@5": [
+          0.003096334396568003,
+          0.008386919191948743
+        ],
+        "Recall@5": [
+          0.003096334396568003,
+          0.008386919191948743
+        ],
+        "NDCG@5": [
+          0.0019957193325858737,
+          0.0058053021582136835
+        ],
+        "MRR@5": [
+          0.001559717186466927,
+          0.005021888342507021
+        ],
+        "Hit@10": [
+          0.005377312572996746,
+          0.011847567809778373
+        ],
+        "Recall@10": [
+          0.005377312572996746,
+          0.011847567809778373
+        ],
+        "NDCG@10": [
+          0.0028539315537892784,
+          0.0068590868198596285
+        ],
+        "MRR@10": [
+          0.0019504100376260122,
+          0.0054531999975629694
+        ]
+      },
+      "diagnostics": {
+        "average_recommendation_count": 9.354704944178629,
+        "rows_shorter_than_maximum_cutoff": 1648,
+        "duplicate_recommendation_rows": 0,
+        "invalid_recommendation_items": 0,
+        "history_overlap_items": 0,
+        "targets_already_in_history": 27,
+        "incomplete_debug_evaluation": false
+      },
+      "rank": 2
+    }
+  ],
+  "paired_comparisons": [
+    {
+      "dataset": "Fashion",
+      "metric": "NDCG@10",
+      "experiment_a": "Llama QLoRA",
+      "experiment_b": "Qwen QLoRA",
+      "status": "comparable",
+      "evaluated_users": 3135,
+      "mean_a": 0.004856509186824454,
+      "mean_b": 0.007224410627873867,
+      "mean_difference_a_minus_b": -0.002367901441049413,
+      "confidence_interval_95": [
+        -0.004416994797054382,
+        -0.000318808085044444
+      ],
+      "confidence_interval_excludes_zero": true,
+      "conclusion": "Qwen QLoRA is higher"
+    }
+  ]
+}
