@@ -6,6 +6,7 @@ import copy
 import hashlib
 import io
 import json
+import random
 from pathlib import Path
 import subprocess
 import tempfile
@@ -223,6 +224,214 @@ class NativeAuditTests(unittest.TestCase):
             self.assertEqual(trainer.evaluate_call["load_best_model"], True)
             self.assertEqual(trainer.recent5_rows[0]["original_history_length"], 9)
             self.assertEqual(trainer.recent5_history_mask_supplied, {False})
+
+
+class BertMaskSafetyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.api = native.recbole_api()
+        from recbole.data.interaction import Interaction
+        cls.Interaction = Interaction
+        cls.dataset = SimpleNamespace(num=lambda _: 30)
+
+    def config(self, directory, dataset="fashion", model="bert4rec", recent=True):
+        parent, child = core.configs(dataset, model)
+        return native.native_config(self.api, dataset, model, child if recent else parent,
+                                    Path(directory) / "original.inter", directory, cpu=True)
+
+    def batch(self, lengths, width=5):
+        torch = self.api["torch"]
+        return self.Interaction({
+            "item_id_list": torch.tensor([list(range(1, length+1)) + [0]*(width-length)
+                                           for length in lengths]),
+            "item_length": torch.tensor(lengths),
+        })
+
+    def assert_supervision(self, transformed, original, transform):
+        indices = transformed[transform.MASK_INDEX]
+        self.assertTrue(bool((indices > 0).any(dim=1).all()))
+        for row in range(len(original)):
+            for slot, encoded in enumerate(indices[row].tolist()):
+                if encoded == 0:
+                    continue
+                position = 0 if encoded == 5 else encoded
+                item = original[transform.ITEM_SEQ][row, position].item()
+                self.assertGreater(item, 0)  # never supervise padding
+                self.assertLess(position, original[transform.ITEM_SEQ_LEN][row].item())
+                self.assertEqual(transformed[transform.POS_ITEMS][row, slot].item(), item)
+                self.assertEqual(transformed[transform.MASK_ITEM_SEQ][row, position].item(), 30)
+                negative = transformed[transform.NEG_ITEMS][row, slot].item()
+                self.assertGreater(negative, 0)
+                self.assertNotIn(negative, original[transform.ITEM_SEQ][row].tolist())
+
+    def test_native_storage_only_fix_reproduces_nan_ce_loss(self):
+        torch = self.api["torch"]
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory)
+            transform = self.api["MaskItemSequence"](config)
+            transform.mask_item_length = 1  # reproduce the incomplete old fix
+            model = self.api["BERT4Rec"](config, self.dataset)
+            model.mask_item_length = 1
+            for probabilities in ([.99] * 6, [.99, .01, .99, .99, .99, .99]):
+                with patch("recbole.data.transform.random.random", side_effect=probabilities):
+                    transformed = transform(self.dataset, self.batch([5]))
+                self.assertEqual((transformed[transform.MASK_INDEX] > 0).sum().item(), 0)
+                with torch.no_grad():
+                    self.assertFalse(bool(torch.isfinite(model.calculate_loss(transformed))))
+
+    def test_empty_and_index_zero_only_masks_use_real_targets_and_native_negatives(self):
+        torch = self.api["torch"]
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory)
+            compatibility = {}
+            with native.input_and_mask_hooks(self.api, Path(directory)/"original.inter", compatibility):
+                transform = self.api["MaskItemSequence"](config)
+                self.assertEqual((transform.mask_ratio, transform.mask_item_length), (.1, 1))
+                for length in (1, 2, 3, 5):
+                    for zero_only in (False, True):
+                        original = self.batch([length])
+                        probabilities = [.99] + ([.01] + [.99]*(length-1) if zero_only else [.99]*length)
+                        with patch("recbole.data.transform.random.random", side_effect=probabilities), \
+                                patch.object(transform, "_neg_sample", wraps=transform._neg_sample) as negative:
+                            transformed = transform(self.dataset, copy.deepcopy(original))
+                        self.assertEqual(negative.call_count, 2 if zero_only else 1)
+                        self.assert_supervision(transformed, original, transform)
+                        self.assertTrue(torch.equal(transformed[transform.ITEM_SEQ], original[transform.ITEM_SEQ]))
+                        expected = length-1 if length > 1 else 5
+                        self.assertEqual(transformed[transform.MASK_INDEX].item(), expected)
+                self.assertTrue(compatibility["bert_minimum_mask_storage_one"])
+                self.assertTrue(compatibility["bert_forced_nonempty_training_masks"])
+                self.assertEqual(compatibility["forced_mask_count"], 8)
+                self.assertEqual(compatibility["forced_position_zero_mask_count"], 2)
+                with self.assertRaisesRegex(ValueError, "empty history"):
+                    transform(self.dataset, self.batch([0]))
+
+    def test_usable_stochastic_masks_are_unchanged(self):
+        torch = self.api["torch"]
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory)
+            transform_before = self.api["MaskItemSequence"](config)
+            transform_before.mask_item_length = 1
+            for probabilities in ([.99, .99, .99, .01, .99, .99], [.99] + [.01]*5):
+                rng = random.getstate()
+                with patch("recbole.data.transform.random.random", side_effect=probabilities):
+                    expected = transform_before(self.dataset, self.batch([5]))
+                expected_rng = random.getstate()
+                random.setstate(rng)
+                compatibility = {}
+                with native.input_and_mask_hooks(self.api, Path(directory)/"original.inter", compatibility):
+                    transform = self.api["MaskItemSequence"](config)
+                    with patch("recbole.data.transform.random.random", side_effect=probabilities):
+                        actual = transform(self.dataset, self.batch([5]))
+                self.assertEqual(random.getstate(), expected_rng)
+                for field in expected.columns:
+                    self.assertTrue(torch.equal(expected[field], actual[field]), field)
+                self.assertEqual(compatibility["forced_mask_count"], 0)
+
+    def test_native_training_loader_is_safe_but_full_sort_transforms_are_unchanged(self):
+        torch = self.api["torch"]
+        original_eval_init = self.api["FullSortEvalDataLoader"].__init__
+        original_call = self.api["MaskItemSequence"].__call__
+        with tempfile.TemporaryDirectory() as directory:
+            source, _ = NativeAuditTests().fixture(Path(directory))
+            config = self.config(directory)
+            compatibility = {}
+            with native.input_and_mask_hooks(self.api, source, compatibility):
+                self.api["init_seed"](42, True)
+                data = self.api["create_dataset"](config)
+                train, valid, test = self.api["data_preparation"](config, data)
+                self.assertTrue(train.transform._recent5_mask_safety)
+                for loader in (valid, test):
+                    self.assertFalse(loader.transform._recent5_mask_safety)
+                    raw = loader.dataset[np.arange(len(loader.dataset))]
+                    with patch("recbole.data.transform.random.random", return_value=.99):
+                        expected = original_call(loader.transform, loader.dataset, copy.deepcopy(raw))
+                        actual, history, _, _ = loader.collate_fn(list(range(len(loader.dataset))))
+                    self.assertIsNone(history)
+                    for field in expected.columns:
+                        self.assertTrue(torch.equal(expected[field], actual[field]), field)
+                    self.assertEqual((actual[loader.transform.MASK_INDEX] > 0).sum().item(), 0)
+                self.assertEqual(compatibility["forced_mask_count"], 0)
+                with patch("recbole.data.transform.random.random", return_value=.99):
+                    batch = train.collate_fn([0])
+                self.assertGreater((batch[train.transform.MASK_INDEX] > 0).sum().item(), 0)
+                self.assertEqual(compatibility["forced_mask_count"], 1)
+        self.assertIs(self.api["FullSortEvalDataLoader"].__init__, original_eval_init)
+
+    def test_repeated_training_batch_preflight_has_finite_native_ce_loss(self):
+        torch = self.api["torch"]
+        original_call = self.api["MaskItemSequence"].__call__
+        original_gather = self.api["BERT4Rec"].multi_hot_embed
+        original_reconstruct = self.api["BERT4Rec"].reconstruct_test_data
+        original_full_sort = self.api["BERT4Rec"].full_sort_predict
+        threads = torch.get_num_threads()
+        torch.set_num_threads(1)
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                for dataset, ratio in (("fashion", .1), ("video_games", .2)):
+                    config = self.config(directory, dataset)
+                    compatibility = {}
+                    self.api["init_seed"](42, True)
+                    with native.input_and_mask_hooks(self.api, Path(directory)/"original.inter", compatibility):
+                        transform = self.api["MaskItemSequence"](config)
+                        model = self.api["BERT4Rec"](config, self.dataset)
+                        self.assertEqual((transform.mask_ratio, model.mask_ratio), (ratio, ratio))
+                        self.assertEqual(model.mask_item_length, 1)
+                        model.train()  # actual CE forward with original dropout; no optimizer or training
+                        for iteration in range(48):
+                            lengths = [1] if iteration % 3 == 0 else [1, 2, 3, 4, 5]
+                            original = self.batch(lengths)
+                            # Include guaranteed all-empty draws as well as native stochastic draws.
+                            context = (patch("recbole.data.transform.random.random", return_value=.99)
+                                       if iteration % 7 == 0 else contextlib.nullcontext())
+                            with context:
+                                transformed = transform(self.dataset, copy.deepcopy(original))
+                            self.assert_supervision(transformed, original, transform)
+                            self.assertGreater((transformed[transform.MASK_INDEX] > 0).sum().item(), 0)
+                            with torch.no_grad():
+                                loss = model.calculate_loss(transformed)
+                            self.assertTrue(bool(torch.isfinite(loss)), (dataset, iteration))
+                        self.assertGreater(compatibility["forced_mask_count"], 0)
+                        self.assertGreater(compatibility["forced_position_zero_mask_count"], 0)
+                        model.eval()
+                        evaluation = self.batch([1, 2, 5])
+                        with torch.no_grad():
+                            expected_scores = model.full_sort_predict(evaluation)
+                    with torch.no_grad():
+                        self.assertTrue(torch.equal(model.full_sort_predict(evaluation), expected_scores))
+            self.assertIs(self.api["MaskItemSequence"].__call__, original_call)
+            self.assertIs(self.api["BERT4Rec"].multi_hot_embed, original_gather)
+            self.assertIs(self.api["BERT4Rec"].reconstruct_test_data, original_reconstruct)
+            self.assertIs(self.api["BERT4Rec"].full_sort_predict, original_full_sort)
+        finally:
+            torch.set_num_threads(threads)
+
+    def test_length_fifty_and_other_models_remain_native(self):
+        from recbole.data.transform import construct_transform, Equal
+        torch = self.api["torch"]
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory, recent=False)
+            original = self.api["MaskItemSequence"](config)
+            with patch("recbole.data.transform.random.random", return_value=.99):
+                expected = original(self.dataset, self.batch([1, 5], width=50))
+            compatibility = {}
+            with native.input_and_mask_hooks(self.api, Path(directory)/"original.inter", compatibility):
+                transform = self.api["MaskItemSequence"](config)
+                self.assertEqual(transform.mask_item_length, 5)
+                model = self.api["BERT4Rec"](config, self.dataset)
+                self.assertFalse(model._recent5_mask_safety)
+                self.assertEqual(model.position_embedding.num_embeddings, 50)
+                with patch("recbole.data.transform.random.random", return_value=.99):
+                    actual = transform(self.dataset, self.batch([1, 5], width=50))
+                for field in expected.columns:
+                    self.assertTrue(torch.equal(expected[field], actual[field]), field)
+                for model_name in ("sasrec", "gru4rec"):
+                    other = self.config(directory, model=model_name)
+                    equal = construct_transform(other)
+                    self.assertIsInstance(equal, Equal)
+                    batch = self.batch([1, 5])
+                    self.assertIs(equal(self.dataset, batch), batch)
+            self.assertEqual(compatibility, {})
 
 
 class ExportTests(unittest.TestCase):

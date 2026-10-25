@@ -38,13 +38,14 @@ def recbole_api():
     import recbole.data
     import recbole.trainer
     from recbole.data.dataset import Dataset
+    from recbole.data.dataloader import FullSortEvalDataLoader
     from recbole.data.transform import MaskItemSequence
     from recbole.model.sequential_recommender.bert4rec import BERT4Rec
     from recbole.utils import init_seed
     return dict(torch=torch, config_module=recbole.config, data_module=recbole.data,
                 trainer_module=recbole.trainer, Config=recbole.config.Config,
                 create_dataset=recbole.data.create_dataset, data_preparation=recbole.data.data_preparation,
-                Trainer=recbole.trainer.Trainer, Dataset=Dataset,
+                Trainer=recbole.trainer.Trainer, Dataset=Dataset, FullSortEvalDataLoader=FullSortEvalDataLoader,
                 MaskItemSequence=MaskItemSequence, BERT4Rec=BERT4Rec, init_seed=init_seed)
 
 
@@ -57,25 +58,90 @@ def input_and_mask_hooks(api, source, compatibility):
     """
     original_load = api["Dataset"]._load_inter_feat
     original_transform_init = api["MaskItemSequence"].__init__
+    original_transform_call = api["MaskItemSequence"].__call__
     original_model_init = api["BERT4Rec"].__init__
+    original_multi_hot = api["BERT4Rec"].multi_hot_embed
+    original_eval_init = api["FullSortEvalDataLoader"].__init__
+    def recent5_bert(config):
+        return config["model"] == "BERT4Rec" and config["MAX_ITEM_LIST_LENGTH"] == 5
     def load_inter(instance, token, dataset_path):
         if Path(dataset_path).resolve() != Path(source).parent.resolve():
             raise ValueError("Unexpected runtime data path")
         return original_load(instance, Path(source).stem, dataset_path)
     def transform_init(instance, config):
         original_transform_init(instance, config)
-        if config["MAX_ITEM_LIST_LENGTH"] == 5 and instance.mask_item_length == 0:
-            instance.mask_item_length = 1
-            compatibility["bert_zero_mask_buffer_minimum_one"] = True
+        instance._recent5_mask_safety = recent5_bert(config)
+        if instance._recent5_mask_safety:
+            if instance.mask_item_length == 0:
+                compatibility["bert_zero_mask_buffer_minimum_one"] = True
+            instance.mask_item_length = max(1, instance.mask_item_length)
+            compatibility["bert_minimum_mask_storage_one"] = True
+            compatibility["bert_forced_nonempty_training_masks"] = True
+            compatibility["bert_position_zero_mask_index_sentinel"] = 5
+            compatibility.setdefault("forced_mask_count", 0)
+            compatibility.setdefault("forced_position_zero_mask_count", 0)
+    def transform_call(instance, dataset, interaction):
+        # Keep RecBole's random decisions, ft_ratio branch, truncation and
+        # negatives intact. Only repair rows that contribute no native target.
+        result = original_transform_call(instance, dataset, interaction)
+        if not getattr(instance, "_recent5_mask_safety", False):
+            return result
+        indices = result[instance.MASK_INDEX]
+        empty_rows = (~(indices > 0).any(dim=1)).nonzero(as_tuple=True)[0].tolist()
+        if not empty_rows:
+            return result
+        sequences = result[instance.ITEM_SEQ].detach().cpu().tolist()
+        n_items = dataset.num(instance.ITEM_ID)
+        for row in empty_rows:
+            sequence = sequences[row]
+            # Native sequences are right padded. Stop at padding just as the
+            # original transform does; never sample a target from a pad slot.
+            positions = []
+            for position, item in enumerate(sequence):
+                if item == 0:
+                    break
+                positions.append(position)
+            if not positions:
+                raise ValueError("Recent5 BERT4Rec cannot supervise an empty history")
+            position = positions[-1]  # deterministic latest real item
+            negative = instance._neg_sample(sequence, n_items)
+            result[instance.MASK_ITEM_SEQ][row, position] = n_items
+            result[instance.POS_ITEMS][row, -1] = sequence[position]
+            result[instance.NEG_ITEMS][row, -1] = negative
+            # Index 0 is native padding in the loss. A singleton has no real
+            # position >0: use the otherwise impossible index 5 as its marker,
+            # decoded to position 0 only by the scoped training gather below.
+            indices[row, -1] = position if position > 0 else instance.max_seq_length
+            compatibility["forced_mask_count"] += 1
+            if position == 0:
+                compatibility["forced_position_zero_mask_count"] += 1
+        return result
     def model_init(instance, config, dataset):
         original_model_init(instance, config, dataset)
-        if config["MAX_ITEM_LIST_LENGTH"] == 5 and instance.mask_item_length == 0:
-            instance.mask_item_length = 1
-            compatibility["bert_zero_mask_buffer_minimum_one"] = True
+        instance._recent5_mask_safety = recent5_bert(config)
+        if instance._recent5_mask_safety:
+            instance.mask_item_length = max(1, instance.mask_item_length)
+    def eval_init(instance, *args, **kwargs):
+        original_eval_init(instance, *args, **kwargs)
+        # RecBole also transforms sequential full-sort evaluation batches.
+        # Those masks are unused by prediction: retain its native draws and
+        # never force evaluation masks or add them to the training counters.
+        if isinstance(instance.transform, api["MaskItemSequence"]):
+            instance.transform._recent5_mask_safety = False
+    def multi_hot_embed(instance, masked_index, max_length):
+        if getattr(instance, "_recent5_mask_safety", False):
+            # Keep the positive sentinel in the interaction for native loss
+            # weighting; decode a separate tensor for gathering hidden states.
+            masked_index = api["torch"].where(masked_index == instance.max_seq_length,
+                                              0, masked_index)
+        return original_multi_hot(instance, masked_index, max_length)
     with ExitStack() as stack:
         stack.enter_context(patch.object(api["Dataset"], "_load_inter_feat", load_inter))
         stack.enter_context(patch.object(api["MaskItemSequence"], "__init__", transform_init))
+        stack.enter_context(patch.object(api["MaskItemSequence"], "__call__", transform_call))
         stack.enter_context(patch.object(api["BERT4Rec"], "__init__", model_init))
+        stack.enter_context(patch.object(api["BERT4Rec"], "multi_hot_embed", multi_hot_embed))
+        stack.enter_context(patch.object(api["FullSortEvalDataLoader"], "__init__", eval_init))
         yield
 
 

@@ -68,11 +68,38 @@ in place. Logs, TensorBoard and checkpoints are isolated in the new run director
 **Necessary execution exception:** RecBole 1.2.0 computes Fashion BERT4Rec's mask
 storage width as `int(0.1 * 5) == 0`. This produces empty or ragged mask tensors.
 The scoped adapter clamps that storage width to at least one in the transform
-and model attribute when it would be zero. It does not change mask_ratio, random
-mask probabilities, ft_ratio, loss, layer sizes or token-selection code. Tests
-reproduce the native zero-buffer failure and verify the fix. The exception is
-recorded in data_audit.json and run_summary.json. It does not affect the original
-50-context BERT configuration or the other model configurations.
+and model attribute. Storage alone is insufficient: native stochastic masking
+can select no targets, and native CE/BPR loss divides by the count of
+`masked_index > 0`, treating position zero as padding.
+
+For **recent5 BERT4Rec only**, the original transform runs first, with unchanged
+mask_ratio, ft_ratio, random masking decisions, truncation and negative sampling.
+Rows with a usable native target are returned unchanged. Otherwise the adapter
+supervises the latest real, non-padding item, obtaining its negative through the
+original `_neg_sample` method. Existing stochastic masks remain in place. A
+singleton history has only real position zero: its forced target uses reserved
+index 5 (outside real positions 0..4). A scoped `multi_hot_embed` wrapper decodes
+that marker to position zero when gathering hidden states; the unchanged native
+loss sees a positive index and counts the target. The item is never moved into a
+padding slot, and no extra context, parameters or positions are added.
+
+This fallback applies to Fashion (mask_ratio 0.1) and Video Games (0.2). Video
+Games already has storage width one, but it can still draw no usable target.
+The necessary methodological exception is **minimum one supervised target per
+otherwise unsupervised training row**; effective supervision is therefore not
+pure Bernoulli masking at the configured rate. Additional fallback negatives
+consume the existing random stream. No optimizer, architecture, hyperparameter,
+loss formula, validation/test reconstruction or full-sort behavior is changed.
+Original length-50 runs, SASRec and GRU4Rec are untouched.
+
+Compatibility metadata records `bert_minimum_mask_storage_one`,
+`bert_forced_nonempty_training_masks`, `forced_mask_count`,
+`forced_position_zero_mask_count` and the position-zero sentinel. The data audit
+records activation with zero forward-pass counts; final run_summary.json records
+actual training counts. Tests reproduce the old storage-only NaN, cover empty
+and position-zero-only masking, and repeatedly check positive supervision and
+finite native CE loss on CPU for both recent5 BERT configurations without any
+optimizer steps.
 
 Native BERT4Rec also appends a prediction MASK within the configured sequence
 length. At a full five-slot history it therefore uses four real preceding items
