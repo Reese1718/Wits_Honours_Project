@@ -6,7 +6,7 @@
 # Dataset
 # ----------------------------------------------------------
 
-dataset: Fashion_Llama
+dataset: Fashion_Qwen
 
 data_path: /content/drive/MyDrive/Wits_Honours_Project/datasets/
 
