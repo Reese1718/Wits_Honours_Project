@@ -1,0 +1,28 @@
+{
+  "dataset": "Video Games",
+  "model": "BERT4Rec",
+  "counts": {
+    "evaluated_users": 109258,
+    "expected_users": 109258,
+    "missing_users": 0
+  },
+  "metrics": {
+    "Hit@10": 0.0307,
+    "Recall@10": 0.0307,
+    "NDCG@10": 0.0159,
+    "MRR@10": 0.0115
+  },
+  "recbole_test_metrics": {
+    "recall@10": 0.0307,
+    "mrr@10": 0.0115,
+    "ndcg@10": 0.0159,
+    "hit@10": 0.0307
+  },
+  "per_user_unrounded_means": {
+    "Hit@10": 0.030697980925881857,
+    "Recall@10": 0.030697980925881857,
+    "NDCG@10": 0.015937235146651015,
+    "MRR@10": 0.011494752336612887
+  },
+  "evaluation": "unchanged native RecBole full-sort; same masks and torch.topk as native collector"
+}

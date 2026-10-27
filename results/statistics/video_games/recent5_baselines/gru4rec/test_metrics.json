@@ -1,0 +1,28 @@
+{
+  "dataset": "Video Games",
+  "model": "GRU4Rec",
+  "counts": {
+    "evaluated_users": 109258,
+    "expected_users": 109258,
+    "missing_users": 0
+  },
+  "metrics": {
+    "Hit@10": 0.0611,
+    "Recall@10": 0.0611,
+    "NDCG@10": 0.0325,
+    "MRR@10": 0.0238
+  },
+  "recbole_test_metrics": {
+    "recall@10": 0.0611,
+    "mrr@10": 0.0238,
+    "ndcg@10": 0.0325,
+    "hit@10": 0.0611
+  },
+  "per_user_unrounded_means": {
+    "Hit@10": 0.061057313880905746,
+    "Recall@10": 0.061057313880905746,
+    "NDCG@10": 0.032478048402912844,
+    "MRR@10": 0.023841100444644353
+  },
+  "evaluation": "unchanged native RecBole full-sort; same masks and torch.topk as native collector"
+}

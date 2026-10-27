@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "dataset": "fashion",
+  "model": "sasrec",
+  "files": {
+    "config.yaml": "97201edf1571330e073860cd93b45be99ff9edfc357181ca9545df1940db9886",
+    "parent_config.yaml": "5ecc664753f2f5fde4cfa309e2706cb652ff3b8e6c845b1a307ea950b0518b5e",
+    "runtime_config.yaml": "61af88280504e558fad74e841b685791b15ff2e9d17120de3137efe480508d60",
+    "run_summary.json": "c58b3962a3745e88e860d4f77a6e1ff4040a93e9b09549f90c5fac28e5c6e8fa",
+    "selected_checkpoint.json": "63ca707f98b97a3ddcd8ccadd53b7530b6aa5d6edbadbee19277b4dbd8415caf",
+    "test_metrics.json": "cd7f3b9782ca443bdd3db7d9437f7fa6171a99e78f1a277c59362c640e083369",
+    "per_user_metrics.jsonl": "7baed6b0b4ed01753efa8cf06b226f7c0f9a1d7cb5c3d307be9caa1f345bdd2a",
+    "data_audit.json": "f371bee8e51d80cc78fe963724b4e28d30ef1d8b3c3dcc85ebd760029621979f"
+  }
+}

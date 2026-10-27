@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "dataset": "video_games",
+  "model": "bert4rec",
+  "files": {
+    "config.yaml": "1ad4c7896a07787ffc6014d7451bd52143ef8c23ac6201c6eb17c4b95e0ba89d",
+    "parent_config.yaml": "5ca876eb1f1716fa4e484712e3e171cf530f9b70f1fafdd4a269a61678e7d3ab",
+    "runtime_config.yaml": "d53a9ba2c2d0c2517792dbab5e3ce00dafd352e538bda8eadfe9951929f41965",
+    "run_summary.json": "244ef127647f051aacd30c0f37a0ab761a9da3d9c8efd0dfd6ee10740299b193",
+    "selected_checkpoint.json": "645aaac65695d0f506d4a2cea05af15bf644484410f25d739440ed731edcba4b",
+    "test_metrics.json": "26dfee39bbe576362898368dca116ea5a7aca9a4944fc9551a70e9c4ee19e8e6",
+    "per_user_metrics.jsonl": "008704d518174f98982b86966ea55e53d0a1f5e9c0e3b3ee0ab4131e4df9a249",
+    "data_audit.json": "95af8584807cedb665af27d614c37a71976372f94215236910cb645678a7e282"
+  }
+}

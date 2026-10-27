@@ -1,0 +1,33 @@
+[
+  {
+    "model": "SASRec",
+    "original_cap": 50,
+    "recent_cap": 5,
+    "other_scientific_differences": {},
+    "context_only_in_saved_checkpoint_settings": true,
+    "bert_training_safeguard": {}
+  },
+  {
+    "model": "BERT4Rec",
+    "original_cap": 50,
+    "recent_cap": 5,
+    "other_scientific_differences": {},
+    "context_only_in_saved_checkpoint_settings": true,
+    "bert_training_safeguard": {
+      "bert_zero_mask_buffer_minimum_one": true,
+      "bert_minimum_mask_storage_one": true,
+      "bert_forced_nonempty_training_masks": true,
+      "bert_position_zero_mask_index_sentinel": 5,
+      "forced_mask_count": 170419,
+      "forced_position_zero_mask_count": 81510
+    }
+  },
+  {
+    "model": "GRU4Rec",
+    "original_cap": 50,
+    "recent_cap": 5,
+    "other_scientific_differences": {},
+    "context_only_in_saved_checkpoint_settings": true,
+    "bert_training_safeguard": {}
+  }
+]

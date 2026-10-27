@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "dataset": "video_games",
+  "model": "sasrec",
+  "files": {
+    "config.yaml": "b42f525f2775b77c3041bb48482cdedbd6a0b918281ec50ca79ce16d047a78c7",
+    "parent_config.yaml": "4427ba0f646736b34cc9baa1eccce3c1285c590411a9cf93a7b0c9e37a086fc7",
+    "runtime_config.yaml": "e07dc675cf835afc38461efb36ec1c6a80453d6fa0ced675cf8f16aef6c0ebd0",
+    "run_summary.json": "0f0e7cbf1df175bb242e5e3670fcebb02a5c0c8f6c0c38e91e76ba5b2f5020fb",
+    "selected_checkpoint.json": "3ba7abeb922a5845f79ce17d87691891562bc55e6aa23da5ec7a8c5dc0a6cdfe",
+    "test_metrics.json": "327a47dd22206cd07f6536f990220f22aa19f8d13d47daf866c12deac8ea7d68",
+    "per_user_metrics.jsonl": "61f2177425fec87adf125db75d1ed8b1ee5f5450572e0bad1a5fc3f6d9d2549a",
+    "data_audit.json": "70a265a9a059cf1892ca3f73d3fb6f7e75384eba93414ff3c092aa8163acf379"
+  }
+}

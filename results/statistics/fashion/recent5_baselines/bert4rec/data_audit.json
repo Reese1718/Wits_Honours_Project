@@ -1,0 +1,46 @@
+{
+  "dataset": "fashion",
+  "model": "BERT4Rec",
+  "recbole_version": "1.2.0",
+  "source": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/Fashion.inter",
+  "source_sha256": "edf75e2e9f1ad8c2a0672c8e639bef8e18accd86b9c8be9bb3fbfd2984020fbc",
+  "source_unchanged": true,
+  "users": 3135,
+  "items": 12493,
+  "interactions": 21441,
+  "training_examples": 12036,
+  "validation_users": 3135,
+  "test_users": 3135,
+  "parent_config_sha256": "f7f3bfe14d0f934e810f6b19ad5636fd8c30d85ab2cddbb9e2e402bb25edfca0",
+  "recent_config_sha256": "79d07ed2c68867f71c5495145cf42b244855c3560f7ebe802361fd70c70abce0",
+  "target_identity": {
+    "training": {
+      "rows": 12036,
+      "target_order_sha256": "423082b5ce552f9ead6322fc0a50d162f3a537262fefd818bfc0b5e5589d715e"
+    },
+    "validation_sha256": "99fb62d89a8b26daefbb53d09961a42524ef772a2cda3111e9327605c2b70887",
+    "test_sha256": "c22154c1aeb27b5e735e86c3622b728bc80b280fdb12b766bd4518adb09a60fe"
+  },
+  "full_vs_recent_targets_equal": true,
+  "recent_five_contexts_equal": true,
+  "temporal_source_targets_equal": true,
+  "evidence": {
+    "user_groups": {
+      "file": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/user_groups.csv",
+      "sha256": "ce621312389619393b6dbc7ceda0debd4ec12537e151eb7265528122a7a8ea68",
+      "aligned": true
+    }
+  },
+  "original_history_groups": {
+    "sparse": 2494,
+    "longer_history": 641
+  },
+  "execution_compatibility": {
+    "bert_zero_mask_buffer_minimum_one": true,
+    "bert_minimum_mask_storage_one": true,
+    "bert_forced_nonempty_training_masks": true,
+    "bert_position_zero_mask_index_sentinel": 5,
+    "forced_mask_count": 0,
+    "forced_position_zero_mask_count": 0
+  }
+}

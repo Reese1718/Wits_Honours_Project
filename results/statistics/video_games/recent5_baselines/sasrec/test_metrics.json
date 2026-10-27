@@ -1,0 +1,28 @@
+{
+  "dataset": "Video Games",
+  "model": "SASRec",
+  "counts": {
+    "evaluated_users": 109258,
+    "expected_users": 109258,
+    "missing_users": 0
+  },
+  "metrics": {
+    "Hit@10": 0.0847,
+    "Recall@10": 0.0847,
+    "NDCG@10": 0.0433,
+    "MRR@10": 0.0307
+  },
+  "recbole_test_metrics": {
+    "recall@10": 0.0847,
+    "mrr@10": 0.0307,
+    "ndcg@10": 0.0433,
+    "hit@10": 0.0847
+  },
+  "per_user_unrounded_means": {
+    "Hit@10": 0.08472606124951948,
+    "Recall@10": 0.08472606124951948,
+    "NDCG@10": 0.04330279744757867,
+    "MRR@10": 0.030695206075498593
+  },
+  "evaluation": "unchanged native RecBole full-sort; same masks and torch.topk as native collector"
+}

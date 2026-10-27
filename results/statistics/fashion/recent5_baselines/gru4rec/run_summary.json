@@ -1,0 +1,35 @@
+{
+  "complete": true,
+  "dataset": "fashion",
+  "model": "GRU4Rec",
+  "context_window": 5,
+  "source": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/Fashion.inter",
+  "source_sha256": "edf75e2e9f1ad8c2a0672c8e639bef8e18accd86b9c8be9bb3fbfd2984020fbc",
+  "scientific_difference": {
+    "MAX_ITEM_LIST_LENGTH": {
+      "parent": 50,
+      "recent5": 5
+    }
+  },
+  "execution_compatibility": {},
+  "runtime_overrides": {
+    "data_path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion",
+    "checkpoint_dir": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/fashion/gru4rec/checkpoints"
+  },
+  "native_history_mask_supplied": [
+    false
+  ],
+  "evaluated_users": 3135,
+  "seed": 42,
+  "elapsed_seconds": 18.70671397000001,
+  "training_seconds": 15.590477954000107,
+  "versions": {
+    "recbole": "1.2.0",
+    "torch": "2.14.1",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3"
+  },
+  "training_script": "/content/drive/MyDrive/Wits_Honours_Project/pipeline/training/train_gru4rec.py",
+  "training_script_sha256": "ebddd7072df797b114ba91d56984ef7df6bbabaaa8bc91ecd421365af90d9b41",
+  "cuda_device": "Tesla T4"
+}

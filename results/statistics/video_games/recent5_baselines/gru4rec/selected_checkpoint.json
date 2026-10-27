@@ -1,0 +1,14 @@
+{
+  "path": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/video_games/gru4rec/checkpoints/GRU4Rec-Oct-25-2026_20-30-38.pth",
+  "sha256": "c70480449f544f6bd38ae084faaaafd5745dc388e059c13115d849d663485717",
+  "best_epoch_zero_based": 29,
+  "best_valid_score": 0.038,
+  "best_valid_result": {
+    "recall@10": 0.0719,
+    "mrr@10": 0.0278,
+    "ndcg@10": 0.038,
+    "hit@10": 0.0719
+  },
+  "valid_metric": "NDCG@10",
+  "restored_by": "original Trainer.evaluate(load_best_model=True)"
+}

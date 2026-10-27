@@ -1,0 +1,28 @@
+{
+  "dataset": "Fashion",
+  "model": "SASRec",
+  "counts": {
+    "evaluated_users": 3135,
+    "expected_users": 3135,
+    "missing_users": 0
+  },
+  "metrics": {
+    "Hit@10": 0.0188,
+    "Recall@10": 0.0188,
+    "NDCG@10": 0.0115,
+    "MRR@10": 0.0093
+  },
+  "recbole_test_metrics": {
+    "recall@10": 0.0188,
+    "mrr@10": 0.0093,
+    "ndcg@10": 0.0115,
+    "hit@10": 0.0188
+  },
+  "per_user_unrounded_means": {
+    "Hit@10": 0.018819776714513556,
+    "Recall@10": 0.018819776714513556,
+    "NDCG@10": 0.01154659637633962,
+    "MRR@10": 0.009311156679577732
+  },
+  "evaluation": "unchanged native RecBole full-sort; same masks and torch.topk as native collector"
+}

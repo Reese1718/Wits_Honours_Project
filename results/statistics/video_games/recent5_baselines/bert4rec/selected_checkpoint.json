@@ -1,0 +1,14 @@
+{
+  "path": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/video_games/bert4rec/checkpoints/BERT4Rec-Oct-25-2026_21-07-57.pth",
+  "sha256": "82c1429dfd98fadc5e8172104b6177e37cdb5b20739d7c29b9eb113431a47b36",
+  "best_epoch_zero_based": 29,
+  "best_valid_score": 0.0173,
+  "best_valid_result": {
+    "recall@10": 0.0336,
+    "mrr@10": 0.0124,
+    "ndcg@10": 0.0173,
+    "hit@10": 0.0336
+  },
+  "valid_metric": "NDCG@10",
+  "restored_by": "original Trainer.evaluate(load_best_model=True)"
+}

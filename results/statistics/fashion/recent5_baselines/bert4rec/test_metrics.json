@@ -1,0 +1,28 @@
+{
+  "dataset": "Fashion",
+  "model": "BERT4Rec",
+  "counts": {
+    "evaluated_users": 3135,
+    "expected_users": 3135,
+    "missing_users": 0
+  },
+  "metrics": {
+    "Hit@10": 0.0115,
+    "Recall@10": 0.0115,
+    "NDCG@10": 0.0053,
+    "MRR@10": 0.0035
+  },
+  "recbole_test_metrics": {
+    "recall@10": 0.0115,
+    "mrr@10": 0.0035,
+    "ndcg@10": 0.0053,
+    "hit@10": 0.0115
+  },
+  "per_user_unrounded_means": {
+    "Hit@10": 0.011483253588516746,
+    "Recall@10": 0.011483253588516746,
+    "NDCG@10": 0.005347039204577512,
+    "MRR@10": 0.0035169995696311485
+  },
+  "evaluation": "unchanged native RecBole full-sort; same masks and torch.topk as native collector"
+}

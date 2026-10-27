@@ -1,0 +1,14 @@
+{
+  "path": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/fashion/bert4rec/checkpoints/BERT4Rec-Oct-25-2026_21-03-32.pth",
+  "sha256": "b6d3c17d6a552ba7bad788a7d6e9477ca1f32d1e394e54537e192c2779fad35b",
+  "best_epoch_zero_based": 14,
+  "best_valid_score": 0.0064,
+  "best_valid_result": {
+    "recall@10": 0.0128,
+    "mrr@10": 0.0045,
+    "ndcg@10": 0.0064,
+    "hit@10": 0.0128
+  },
+  "valid_metric": "NDCG@10",
+  "restored_by": "original Trainer.evaluate(load_best_model=True)"
+}

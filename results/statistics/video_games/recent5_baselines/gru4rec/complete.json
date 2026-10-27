@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "dataset": "video_games",
+  "model": "gru4rec",
+  "files": {
+    "config.yaml": "24407aea036d645db85f7de071074116dfa6bdc239cb6a66af67874ad3562ce1",
+    "parent_config.yaml": "0b5e176853c57803e13d32ab0f7d9be22cdff736322cfab8ee6324f72b5b0757",
+    "runtime_config.yaml": "efec3654989044801d8531a0833fb76a92c4f4329d6f04896edb2f19c483ece6",
+    "run_summary.json": "98dcd93268b8f649b2432b72fdc8d9e818526093dcde1553e0b8cf2b545c3495",
+    "selected_checkpoint.json": "63d025b68943815367a7f374d092629b371f50f88b87e3cf52f8163253fc5ff3",
+    "test_metrics.json": "3d966936721e2f84baa3a89742cd80811752fe879000f7cd7006276d98b25a73",
+    "per_user_metrics.jsonl": "3d7b5743d1325eefc9ea031e9c3561eb772f261f322a966f064072ae01eaed8a",
+    "data_audit.json": "b461824e93a65d86b664a1b59f391f5656699b0f36207c6f5663502a11cb0732"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "dataset": "fashion",
+  "model": "gru4rec",
+  "files": {
+    "config.yaml": "49301f626fe1b7669756592d8054537decd0c35df630d9c33220195d26e68ff6",
+    "parent_config.yaml": "3a691915c54a9f51d6c772f3cce5605099af76b44c790df6255a679b2c43a7ce",
+    "runtime_config.yaml": "c5a06c8c3bf74231ce47c245a228781c5b53d81e5249adf27e7dc6c3a948f056",
+    "run_summary.json": "4d22a8962756350b3dde869b5d7048077dbfd7c05ee2044b81e1cd24c217fdf6",
+    "selected_checkpoint.json": "5372a960c0807724729fa69799a98ebb21f57ae2c0b55699655b3155a31860ad",
+    "test_metrics.json": "e8ac6d06835d7920d63471348185e48ef349b8032579c402ddf0c8fa02bd6866",
+    "per_user_metrics.jsonl": "bb4f83bc042b52b0259089de04782d83972ddbe433d9ad58c595c73de2d9072e",
+    "data_audit.json": "8062a74d016672567ce35e69a7540106bc2feee2724d41ceec4862e5cb8f4077"
+  }
+}

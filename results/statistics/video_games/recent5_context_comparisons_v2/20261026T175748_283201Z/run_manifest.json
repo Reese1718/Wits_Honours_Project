@@ -1,0 +1,255 @@
+{
+  "dataset": "video_games",
+  "created_utc": "2026-10-26T18:02:24.341451+00:00",
+  "users": 109258,
+  "primary_planned_tests": 81,
+  "supporting_mcnemar_family": 27,
+  "supporting_cohort_family": 27,
+  "bootstrap_resamples": 5000,
+  "seed": 42,
+  "protocol_file": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparisons_v2/20261026T175748_283201Z/verified_evaluation_protocol.json",
+  "protocol_sha256": "ebca433d5fa8ec889d29e274f45f1ed38458abace1a4c0d435f3755524a9e77d",
+  "native_recent5_exports": {
+    "SASRec": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec",
+    "BERT4Rec": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec",
+    "GRU4Rec": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec"
+  },
+  "cache_exports": {
+    "SASRec_50": {
+      "native": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/SASRec_50/e0cb8292cc1048c0fae562de6ed67b6103bb40cab94949b966fa8237dbbba858/native.csv",
+      "matched": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/SASRec_50/e0cb8292cc1048c0fae562de6ed67b6103bb40cab94949b966fa8237dbbba858/matched.csv"
+    },
+    "SASRec_5": {
+      "native": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/SASRec_5/8e12a2cea347e7aba36e03e77fd04f8052a7a01a0035849e42718a1f2cd57dbf/native.csv",
+      "matched": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/SASRec_5/8e12a2cea347e7aba36e03e77fd04f8052a7a01a0035849e42718a1f2cd57dbf/matched.csv"
+    },
+    "BERT4Rec_50": {
+      "native": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/BERT4Rec_50/f3417fdbf92d0df21cbba481b276d8ee657e5cf8d03463910a32de1983027ed7/native.csv",
+      "matched": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/BERT4Rec_50/f3417fdbf92d0df21cbba481b276d8ee657e5cf8d03463910a32de1983027ed7/matched.csv"
+    },
+    "BERT4Rec_5": {
+      "native": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/BERT4Rec_5/b180b4eb4c4a92245cfa22e0ea63ab8afbe774a4a3b70d1010e72bb43980a577/native.csv",
+      "matched": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/BERT4Rec_5/b180b4eb4c4a92245cfa22e0ea63ab8afbe774a4a3b70d1010e72bb43980a577/matched.csv"
+    },
+    "GRU4Rec_50": {
+      "native": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/GRU4Rec_50/3763027747ee2f842d7df397b8867355428872541e011dd02a775cded5d96b38/native.csv",
+      "matched": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/GRU4Rec_50/3763027747ee2f842d7df397b8867355428872541e011dd02a775cded5d96b38/matched.csv"
+    },
+    "GRU4Rec_5": {
+      "native": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/GRU4Rec_5/f77e0662a11029a828d0d4776501f49fed432f885e0e0baeab1380d57965763e/native.csv",
+      "matched": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_context_comparison_cache_v2/GRU4Rec_5/f77e0662a11029a828d0d4776501f49fed432f885e0e0baeab1380d57965763e/matched.csv"
+    }
+  },
+  "comparisons": [
+    {
+      "id": "SASRec_context",
+      "family": "context_ablation",
+      "base_model": "SASRec",
+      "left": "SASRec_50_native",
+      "right": "SASRec_5_native",
+      "label": "SASRec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "SASRec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "SASRec",
+      "left": "SASRec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 SASRec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "SASRec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "SASRec",
+      "left": "SASRec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 SASRec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "BERT4Rec_context",
+      "family": "context_ablation",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_50_native",
+      "right": "BERT4Rec_5_native",
+      "label": "BERT4Rec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "BERT4Rec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 BERT4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "BERT4Rec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 BERT4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "GRU4Rec_context",
+      "family": "context_ablation",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_50_native",
+      "right": "GRU4Rec_5_native",
+      "label": "GRU4Rec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "GRU4Rec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 GRU4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "GRU4Rec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 GRU4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    }
+  ],
+  "configuration_audit": [
+    {
+      "model": "SASRec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {}
+    },
+    {
+      "model": "BERT4Rec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {
+        "bert_minimum_mask_storage_one": true,
+        "bert_forced_nonempty_training_masks": true,
+        "bert_position_zero_mask_index_sentinel": 5,
+        "forced_mask_count": 7374366,
+        "forced_position_zero_mask_count": 3277740
+      }
+    },
+    {
+      "model": "GRU4Rec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {}
+    }
+  ],
+  "environment": {
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "scipy": "1.16.3",
+    "matplotlib": "3.10.0"
+  },
+  "limitations": [
+    "Fixed-checkpoint comparisons; no training-seed uncertainty estimate",
+    "BERT4Rec recent-5 training included a documented short-sequence masking safeguard",
+    "BERT4Rec prediction-mask insertion can reduce the number of real history items below the configured cap; see effective_context_audit.json",
+    "LLM recent-5 inference history limits require supporting generation metadata; see verified_evaluation_protocol.json",
+    "A context-only interpretation requires matching the actual saved checkpoint scientific settings",
+    "Candidate rules differ BETWEEN the context and LLM questions, but match WITHIN each paired comparison",
+    "Nonsignificance is not equivalence/no-harm evidence",
+    "Per-dataset correction is not a thesis-wide correction across prior experiments",
+    "Users share items and model parameters; independent-user inference is an approximation"
+  ],
+  "native_reproduction_audit": [
+    {
+      "model_variant": "SASRec_50",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "SASRec_5",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": -1.3877787807814457e-17,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "BERT4Rec_50",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "BERT4Rec_5",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "GRU4Rec_50",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "GRU4Rec_5",
+      "users": 109258,
+      "mismatched_users": 10,
+      "exact_reproduction_within_export_rounding": false,
+      "status": "unresolved_rank_drift",
+      "cause": "not established",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": -2.3712197182515493e-06,
+      "mrr@10_mean_drift": -2.8729144674888296e-06,
+      "within_documented_v2_bounds": true
+    }
+  ],
+  "reproduction_sensitivity_changed_holm_decisions": 0,
+  "validation_status": "qualified_reproduction"
+}

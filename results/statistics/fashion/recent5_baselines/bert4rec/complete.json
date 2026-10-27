@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "dataset": "fashion",
+  "model": "bert4rec",
+  "files": {
+    "config.yaml": "79d07ed2c68867f71c5495145cf42b244855c3560f7ebe802361fd70c70abce0",
+    "parent_config.yaml": "f7f3bfe14d0f934e810f6b19ad5636fd8c30d85ab2cddbb9e2e402bb25edfca0",
+    "runtime_config.yaml": "1672ec4b25ec1ba54d3a94b678104a3d5105d5b79441f6c22561da907417184c",
+    "run_summary.json": "5a3c187bfaf34b342934a77ee154c9913936ba308b50bd9e177a118dfd94c0a1",
+    "selected_checkpoint.json": "c58e4de4ff18749dd62e8de76aa3f5a7e00c22d135a247bddc18ab18be99feea",
+    "test_metrics.json": "dd6257378581ca65c679f9967b900cec090af21db2ae60657b12cbbe5c0be44f",
+    "per_user_metrics.jsonl": "8613a32996488ae20e1cdb9132195960d3c53f66e3d4546dbc7285d17f54a46e",
+    "data_audit.json": "b250bd81e992522af9209835c606a005638e36c3f9e6fb8b6ccdaf33dad5005e"
+  }
+}

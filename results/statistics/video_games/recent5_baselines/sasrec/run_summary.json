@@ -1,0 +1,35 @@
+{
+  "complete": true,
+  "dataset": "video_games",
+  "model": "SASRec",
+  "context_window": 5,
+  "source": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/Video_Games.inter",
+  "source_sha256": "3cd9ef69f3f29094202c9b194bfb58bcb7aec066e6ff3d7dcaf10a890e018d0c",
+  "scientific_difference": {
+    "MAX_ITEM_LIST_LENGTH": {
+      "parent": 50,
+      "recent5": 5
+    }
+  },
+  "execution_compatibility": {},
+  "runtime_overrides": {
+    "data_path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games",
+    "checkpoint_dir": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/video_games/sasrec/checkpoints"
+  },
+  "native_history_mask_supplied": [
+    false
+  ],
+  "evaluated_users": 109258,
+  "seed": 42,
+  "elapsed_seconds": 4627.258284286,
+  "training_seconds": 4598.792176343,
+  "versions": {
+    "recbole": "1.2.0",
+    "torch": "2.14.1",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3"
+  },
+  "training_script": "/content/drive/MyDrive/Wits_Honours_Project/pipeline/training/train_sasrec.py",
+  "training_script_sha256": "d120aefa4d487ba7965e528adc52a9ad77f384afbfafd7094b00a30fb9309445",
+  "cuda_device": "NVIDIA A100-SXM4-40GB"
+}

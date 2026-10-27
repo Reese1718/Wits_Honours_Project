@@ -1,0 +1,14 @@
+{
+  "path": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/fashion/gru4rec/checkpoints/GRU4Rec-Oct-25-2026_18-48-22.pth",
+  "sha256": "e7e216bdcb70826ccc8da60ed0bc779bd618820c9fc44f1239a23798ee55278e",
+  "best_epoch_zero_based": 2,
+  "best_valid_score": 0.0063,
+  "best_valid_result": {
+    "recall@10": 0.0118,
+    "mrr@10": 0.0047,
+    "ndcg@10": 0.0063,
+    "hit@10": 0.0118
+  },
+  "valid_metric": "NDCG@10",
+  "restored_by": "original Trainer.evaluate(load_best_model=True)"
+}

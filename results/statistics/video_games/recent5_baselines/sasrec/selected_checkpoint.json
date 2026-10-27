@@ -1,0 +1,14 @@
+{
+  "path": "/content/drive/MyDrive/Wits_Honours_Project/results/recent5_baselines/video_games/sasrec/checkpoints/SASRec-Oct-25-2026_19-12-28.pth",
+  "sha256": "ceab5abf25ecb2eb8f844054eaab34d40d48722f315e9f95dea9c409ee61fedc",
+  "best_epoch_zero_based": 4,
+  "best_valid_score": 0.0502,
+  "best_valid_result": {
+    "recall@10": 0.0997,
+    "mrr@10": 0.035,
+    "ndcg@10": 0.0502,
+    "hit@10": 0.0997
+  },
+  "valid_metric": "NDCG@10",
+  "restored_by": "original Trainer.evaluate(load_best_model=True)"
+}

@@ -1,0 +1,639 @@
+{
+  "schema_version": 4,
+  "native_reproduction_audit": [
+    {
+      "model_variant": "SASRec_50",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "SASRec_5",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "BERT4Rec_50",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 3.469446951953614e-18,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "BERT4Rec_5",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "GRU4Rec_50",
+      "users": 109258,
+      "mismatched_users": 0,
+      "exact_reproduction_within_export_rounding": true,
+      "status": "reproduced",
+      "cause": "not applicable",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": 0.0,
+      "mrr@10_mean_drift": 0.0
+    },
+    {
+      "model_variant": "GRU4Rec_5",
+      "users": 109258,
+      "mismatched_users": 10,
+      "exact_reproduction_within_export_rounding": false,
+      "status": "unresolved_rank_drift",
+      "cause": "not established",
+      "hit@10_mean_drift": 0.0,
+      "ndcg@10_mean_drift": -2.3712197182515493e-06,
+      "mrr@10_mean_drift": -2.8729144674888296e-06,
+      "within_documented_v2_bounds": true
+    }
+  ],
+  "native_context_metric_source": "authoritative completed exports; fresh-native sensitivity supplied",
+  "dataset": "video_games",
+  "users": 109258,
+  "task_sha256": "9f1ffd9e39626018dbb63e986897742d50d195952c229ad941a7545283bd36e0",
+  "catalogue_sha256": "acee6c002769458afdbdea44b8ee8388139e46f3b6f52b3373389c382ceb1bb1",
+  "group_file_sha256": "5b15f38b16c900ebfb5e662a77ff0b88942aee4a253dc102bca7634a06030dee",
+  "comparisons": [
+    {
+      "id": "SASRec_context",
+      "family": "context_ablation",
+      "base_model": "SASRec",
+      "left": "SASRec_50_native",
+      "right": "SASRec_5_native",
+      "label": "SASRec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "SASRec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "SASRec",
+      "left": "SASRec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 SASRec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "SASRec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "SASRec",
+      "left": "SASRec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 SASRec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "BERT4Rec_context",
+      "family": "context_ablation",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_50_native",
+      "right": "BERT4Rec_5_native",
+      "label": "BERT4Rec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "BERT4Rec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 BERT4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "BERT4Rec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 BERT4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "GRU4Rec_context",
+      "family": "context_ablation",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_50_native",
+      "right": "GRU4Rec_5_native",
+      "label": "GRU4Rec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "GRU4Rec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 GRU4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "GRU4Rec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 GRU4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    }
+  ],
+  "primary_holm_family": 81,
+  "supporting_mcnemar_family": 27,
+  "context_ablation_candidate_rule": "native real full catalogue; only padding excluded on BOTH sides",
+  "llm_comparison_candidate_rule": "same real catalogue minus authoritative evaluation-history items",
+  "repeated_target_policy": "retained; eligible in native context comparison, masked miss in LLM comparison",
+  "configuration_audit": [
+    {
+      "model": "SASRec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {}
+    },
+    {
+      "model": "BERT4Rec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {
+        "bert_minimum_mask_storage_one": true,
+        "bert_forced_nonempty_training_masks": true,
+        "bert_position_zero_mask_index_sentinel": 5,
+        "forced_mask_count": 7374366,
+        "forced_position_zero_mask_count": 3277740
+      }
+    },
+    {
+      "model": "GRU4Rec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {}
+    }
+  ],
+  "effective_context_audit": [
+    {
+      "model_variant": "SASRec_50",
+      "configured_cap": 50,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 50,
+      "effective_count_distribution": {
+        "4": 34884,
+        "5": 20940,
+        "6": 13250,
+        "7": 9152,
+        "8": 6516,
+        "9": 4626,
+        "10": 3546,
+        "11": 2713,
+        "12": 2075,
+        "13": 1644,
+        "14": 1389,
+        "15": 1080,
+        "16": 939,
+        "17": 744,
+        "18": 661,
+        "19": 518,
+        "20": 479,
+        "21": 381,
+        "22": 328,
+        "23": 282,
+        "24": 246,
+        "25": 230,
+        "26": 209,
+        "27": 204,
+        "28": 164,
+        "29": 152,
+        "30": 130,
+        "31": 122,
+        "32": 107,
+        "33": 99,
+        "34": 95,
+        "35": 94,
+        "36": 94,
+        "37": 50,
+        "38": 63,
+        "39": 44,
+        "40": 50,
+        "41": 66,
+        "42": 58,
+        "43": 43,
+        "44": 47,
+        "45": 52,
+        "46": 34,
+        "47": 32,
+        "48": 24,
+        "49": 22,
+        "50": 580
+      }
+    },
+    {
+      "model_variant": "SASRec_5",
+      "configured_cap": 5,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 5,
+      "effective_count_distribution": {
+        "4": 34884,
+        "5": 74374
+      }
+    },
+    {
+      "model_variant": "BERT4Rec_50",
+      "configured_cap": 50,
+      "minimum_effective_history_items": 3,
+      "maximum_effective_history_items": 49,
+      "effective_count_distribution": {
+        "3": 34884,
+        "4": 20940,
+        "5": 13250,
+        "6": 9152,
+        "7": 6516,
+        "8": 4626,
+        "9": 3546,
+        "10": 2713,
+        "11": 2075,
+        "12": 1644,
+        "13": 1389,
+        "14": 1080,
+        "15": 939,
+        "16": 744,
+        "17": 661,
+        "18": 518,
+        "19": 479,
+        "20": 381,
+        "21": 328,
+        "22": 282,
+        "23": 246,
+        "24": 230,
+        "25": 209,
+        "26": 204,
+        "27": 164,
+        "28": 152,
+        "29": 130,
+        "30": 122,
+        "31": 107,
+        "32": 99,
+        "33": 95,
+        "34": 94,
+        "35": 94,
+        "36": 50,
+        "37": 63,
+        "38": 44,
+        "39": 50,
+        "40": 66,
+        "41": 58,
+        "42": 43,
+        "43": 47,
+        "44": 52,
+        "45": 34,
+        "46": 32,
+        "47": 24,
+        "48": 22,
+        "49": 580
+      }
+    },
+    {
+      "model_variant": "BERT4Rec_5",
+      "configured_cap": 5,
+      "minimum_effective_history_items": 3,
+      "maximum_effective_history_items": 4,
+      "effective_count_distribution": {
+        "3": 34884,
+        "4": 74374
+      }
+    },
+    {
+      "model_variant": "GRU4Rec_50",
+      "configured_cap": 50,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 50,
+      "effective_count_distribution": {
+        "4": 34884,
+        "5": 20940,
+        "6": 13250,
+        "7": 9152,
+        "8": 6516,
+        "9": 4626,
+        "10": 3546,
+        "11": 2713,
+        "12": 2075,
+        "13": 1644,
+        "14": 1389,
+        "15": 1080,
+        "16": 939,
+        "17": 744,
+        "18": 661,
+        "19": 518,
+        "20": 479,
+        "21": 381,
+        "22": 328,
+        "23": 282,
+        "24": 246,
+        "25": 230,
+        "26": 209,
+        "27": 204,
+        "28": 164,
+        "29": 152,
+        "30": 130,
+        "31": 122,
+        "32": 107,
+        "33": 99,
+        "34": 95,
+        "35": 94,
+        "36": 94,
+        "37": 50,
+        "38": 63,
+        "39": 44,
+        "40": 50,
+        "41": 66,
+        "42": 58,
+        "43": 43,
+        "44": 47,
+        "45": 52,
+        "46": 34,
+        "47": 32,
+        "48": 24,
+        "49": 22,
+        "50": 580
+      }
+    },
+    {
+      "model_variant": "GRU4Rec_5",
+      "configured_cap": 5,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 5,
+      "effective_count_distribution": {
+        "4": 34884,
+        "5": 74374
+      }
+    }
+  ],
+  "llm_context_audit": {
+    "Qwen": {
+      "declared_max_history_length": 5,
+      "declared_recent5": true,
+      "status": "declared in generation summary"
+    },
+    "Llama": {
+      "declared_max_history_length": 5,
+      "declared_recent5": true,
+      "status": "declared in generation summary"
+    }
+  },
+  "evidence_files": [
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/qwen_qlora/per_user_metrics.jsonl",
+      "sha256": "2a81e358d3696cbbde6d772810329d8347d4220a83a4a5c4aff721f5e7c4b2d1"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/qwen_qlora/test_metrics.json",
+      "sha256": "68600b09f6bee72c71bc0afbb6200ab6e772a618a92c32682acabd2a03c3baad"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/processed/llm/splits/test.jsonl",
+      "sha256": "c6a0ffea0acdd9b8332be557158fcb11d1d8e516d4a3e4a9173675f5c7302183"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/processed/llm/splits/item_catalogue.json",
+      "sha256": "4991d8515ad85c2cb3ca81375630d0e6daf394fa21f970f07653d5bc0cdc3410"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/llama_qlora/per_user_metrics.jsonl",
+      "sha256": "8065569dccd49522a50f74846ddfd977bd46b709e50ef9a5d2579d524d417688"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/llama_qlora/test_metrics.json",
+      "sha256": "2a131adf4c7c2fcc41bfd6c3afc277c207bd09f8b65ddcfb1f1b88c7d12aa622"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/processed/llm/splits/test.jsonl",
+      "sha256": "c6a0ffea0acdd9b8332be557158fcb11d1d8e516d4a3e4a9173675f5c7302183"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/processed/llm/splits/item_catalogue.json",
+      "sha256": "4991d8515ad85c2cb3ca81375630d0e6daf394fa21f970f07653d5bc0cdc3410"
+    },
+    {
+      "model": "groups",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/Video_Games.inter",
+      "sha256": "3cd9ef69f3f29094202c9b194bfb58bcb7aec066e6ff3d7dcaf10a890e018d0c"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/complete.json",
+      "sha256": "1a0a61bb8adea43576f6ab9b9403cc01f1d1e2fe3fec615ce46209b12e71e3ac"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/parent_config.yaml",
+      "sha256": "4427ba0f646736b34cc9baa1eccce3c1285c590411a9cf93a7b0c9e37a086fc7"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/selected_checkpoint.json",
+      "sha256": "3ba7abeb922a5845f79ce17d87691891562bc55e6aa23da5ec7a8c5dc0a6cdfe"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/data_audit.json",
+      "sha256": "70a265a9a059cf1892ca3f73d3fb6f7e75384eba93414ff3c092aa8163acf379"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/run_summary.json",
+      "sha256": "0f0e7cbf1df175bb242e5e3670fcebb02a5c0c8f6c0c38e91e76ba5b2f5020fb"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/per_user_metrics.jsonl",
+      "sha256": "61f2177425fec87adf125db75d1ed8b1ee5f5450572e0bad1a5fc3f6d9d2549a"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/config.yaml",
+      "sha256": "b42f525f2775b77c3041bb48482cdedbd6a0b918281ec50ca79ce16d047a78c7"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/runtime_config.yaml",
+      "sha256": "e07dc675cf835afc38461efb36ec1c6a80453d6fa0ced675cf8f16aef6c0ebd0"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/sasrec/test_metrics.json",
+      "sha256": "327a47dd22206cd07f6536f990220f22aa19f8d13d47daf866c12deac8ea7d68"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/complete.json",
+      "sha256": "55817ecb5db3d529a9a6e2c1cece1966feac4f72e0eb09f0914837c84eedec3c"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/parent_config.yaml",
+      "sha256": "5ca876eb1f1716fa4e484712e3e171cf530f9b70f1fafdd4a269a61678e7d3ab"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/selected_checkpoint.json",
+      "sha256": "645aaac65695d0f506d4a2cea05af15bf644484410f25d739440ed731edcba4b"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/data_audit.json",
+      "sha256": "95af8584807cedb665af27d614c37a71976372f94215236910cb645678a7e282"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/run_summary.json",
+      "sha256": "244ef127647f051aacd30c0f37a0ab761a9da3d9c8efd0dfd6ee10740299b193"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/per_user_metrics.jsonl",
+      "sha256": "008704d518174f98982b86966ea55e53d0a1f5e9c0e3b3ee0ab4131e4df9a249"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/config.yaml",
+      "sha256": "1ad4c7896a07787ffc6014d7451bd52143ef8c23ac6201c6eb17c4b95e0ba89d"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/runtime_config.yaml",
+      "sha256": "d53a9ba2c2d0c2517792dbab5e3ce00dafd352e538bda8eadfe9951929f41965"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/bert4rec/test_metrics.json",
+      "sha256": "26dfee39bbe576362898368dca116ea5a7aca9a4944fc9551a70e9c4ee19e8e6"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/complete.json",
+      "sha256": "be07973e9fac6f57050a53e9252f0e3aa140de397ea04af57d3fbb2c00c348fe"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/parent_config.yaml",
+      "sha256": "0b5e176853c57803e13d32ab0f7d9be22cdff736322cfab8ee6324f72b5b0757"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/selected_checkpoint.json",
+      "sha256": "63d025b68943815367a7f374d092629b371f50f88b87e3cf52f8163253fc5ff3"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/data_audit.json",
+      "sha256": "b461824e93a65d86b664a1b59f391f5656699b0f36207c6f5663502a11cb0732"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/run_summary.json",
+      "sha256": "98dcd93268b8f649b2432b72fdc8d9e818526093dcde1553e0b8cf2b545c3495"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/per_user_metrics.jsonl",
+      "sha256": "3d7b5743d1325eefc9ea031e9c3561eb772f261f322a966f064072ae01eaed8a"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/config.yaml",
+      "sha256": "24407aea036d645db85f7de071074116dfa6bdc239cb6a66af67874ad3562ce1"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/runtime_config.yaml",
+      "sha256": "efec3654989044801d8531a0833fb76a92c4f4329d6f04896edb2f19c483ece6"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/recent5_baselines/gru4rec/test_metrics.json",
+      "sha256": "3d966936721e2f84baa3a89742cd80811752fe879000f7cd7006276d98b25a73"
+    },
+    {
+      "model": "SASRec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/video_games_sasrec_full_and_selective/20261014T135717_950176Z/per_user/baseline.json",
+      "sha256": "f18ae9142a2b51d7b9f3360d444e94c9bba3d3948a65dcaba3a3f1e1d52ae842"
+    },
+    {
+      "model": "SASRec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/video_games_sasrec_full_and_selective/20261014T135717_950176Z/per_user/baseline_native.csv",
+      "sha256": "17e829f7e0996914dd070b78b56e9d66369e2ddf77cfb39b95243d47124e9363"
+    },
+    {
+      "model": "BERT4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/video_games_bert4rec_full_and_selective/20261015T044328_357021Z/per_user/baseline.json",
+      "sha256": "bc42489474ed40acb29923ebbac877765132f4d0b583d6288d7625a593b3f964"
+    },
+    {
+      "model": "BERT4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/video_games_bert4rec_full_and_selective/20261015T044328_357021Z/per_user/baseline_native.csv",
+      "sha256": "2285954af51859c82d7e117a055dc8f48ffaa71a33f1cac9ae3fb54fcdc498c9"
+    },
+    {
+      "model": "GRU4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/video_games_gru4rec_full_and_selective/20261015T044323_561127Z/per_user/baseline.json",
+      "sha256": "97aac50e46074f9b4f6762f9de4e076f16aff2e6f7d8e14408f4652abef5512f"
+    },
+    {
+      "model": "GRU4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/video_games_gru4rec_full_and_selective/20261015T044323_561127Z/per_user/baseline_native.csv",
+      "sha256": "aaffe9ec17480c2370dcb70d1510b8b76affe831fef1b6abbefd045009c1ccdf"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/qwen_qlora/generation_summary.json",
+      "sha256": "474436059d7c21a49a0e2af8652a2a9253500623a68a58234f78d0c20e8fc4ea"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/llama_qlora/generation_summary.json",
+      "sha256": "ba969712054fa0938c5e810d3bef4dc86c52af1384b29ea833a0053663db4d7d"
+    }
+  ],
+  "interpretation": "Context-associated configuration differences; a pure context attribution requires matched other settings. BERT4Rec training used the documented short-sequence safeguard. Fixed-checkpoint inference, not seed uncertainty."
+}

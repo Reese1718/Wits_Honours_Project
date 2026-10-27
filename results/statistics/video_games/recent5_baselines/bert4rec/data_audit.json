@@ -1,0 +1,45 @@
+{
+  "dataset": "video_games",
+  "model": "BERT4Rec",
+  "recbole_version": "1.2.0",
+  "source": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Video Games/Video_Games.inter",
+  "source_sha256": "3cd9ef69f3f29094202c9b194bfb58bcb7aec066e6ff3d7dcaf10a890e018d0c",
+  "source_unchanged": true,
+  "users": 109258,
+  "items": 54595,
+  "interactions": 945660,
+  "training_examples": 617886,
+  "validation_users": 109258,
+  "test_users": 109258,
+  "parent_config_sha256": "5ca876eb1f1716fa4e484712e3e171cf530f9b70f1fafdd4a269a61678e7d3ab",
+  "recent_config_sha256": "1ad4c7896a07787ffc6014d7451bd52143ef8c23ac6201c6eb17c4b95e0ba89d",
+  "target_identity": {
+    "training": {
+      "rows": 617886,
+      "target_order_sha256": "8592c4e6ff1d01e6c61a570612180e190929062dc7fd14feaa0217fc37371873"
+    },
+    "validation_sha256": "1bf8db1a5ee60532fdaf4386398851d2d48bb19e1d8f4ebd73d1aba35614ec6d",
+    "test_sha256": "bd66ea441abab801c0c22cd1ad616369170ec69a124cf56daf4c7d619545388b"
+  },
+  "full_vs_recent_targets_equal": true,
+  "recent_five_contexts_equal": true,
+  "temporal_source_targets_equal": true,
+  "evidence": {
+    "user_groups": {
+      "file": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/video_games/user_groups.csv",
+      "sha256": "653a27042c25cc2967ae128d0aece73e28cc5a8262566bd99c337282fb39d428",
+      "aligned": true
+    }
+  },
+  "original_history_groups": {
+    "sparse": 69074,
+    "longer_history": 40184
+  },
+  "execution_compatibility": {
+    "bert_minimum_mask_storage_one": true,
+    "bert_forced_nonempty_training_masks": true,
+    "bert_position_zero_mask_index_sentinel": 5,
+    "forced_mask_count": 0,
+    "forced_position_zero_mask_count": 0
+  }
+}

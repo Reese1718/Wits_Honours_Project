@@ -1,0 +1,528 @@
+{
+  "schema_version": 3,
+  "dataset": "fashion",
+  "users": 3135,
+  "task_sha256": "2dc2c85ef326f3de7d241c42a3eb73096f455c5cc71cb53384598059c594efec",
+  "catalogue_sha256": "2fb2bdaf2df1cdee15175d56d32f50c62363c7d07806f9868eb1b1602faa69fb",
+  "group_file_sha256": "7edc1cb9f6d70397f3f5d8e996001737c2497394c342a4ded0af0ea53688909b",
+  "comparisons": [
+    {
+      "id": "SASRec_context",
+      "family": "context_ablation",
+      "base_model": "SASRec",
+      "left": "SASRec_50_native",
+      "right": "SASRec_5_native",
+      "label": "SASRec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "SASRec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "SASRec",
+      "left": "SASRec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 SASRec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "SASRec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "SASRec",
+      "left": "SASRec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 SASRec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "BERT4Rec_context",
+      "family": "context_ablation",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_50_native",
+      "right": "BERT4Rec_5_native",
+      "label": "BERT4Rec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "BERT4Rec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 BERT4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "BERT4Rec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "BERT4Rec",
+      "left": "BERT4Rec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 BERT4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "GRU4Rec_context",
+      "family": "context_ablation",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_50_native",
+      "right": "GRU4Rec_5_native",
+      "label": "GRU4Rec: recent-5 \u2212 original-50",
+      "protocol": "native_padding_only",
+      "positive_meaning": "Recent-5 higher"
+    },
+    {
+      "id": "GRU4Rec_Qwen",
+      "family": "recent5_vs_llm",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_5_matched",
+      "right": "Qwen",
+      "label": "Qwen \u2212 GRU4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    },
+    {
+      "id": "GRU4Rec_Llama",
+      "family": "recent5_vs_llm",
+      "base_model": "GRU4Rec",
+      "left": "GRU4Rec_5_matched",
+      "right": "Llama",
+      "label": "Llama \u2212 GRU4Rec recent-5",
+      "protocol": "evaluation_history_excluded",
+      "positive_meaning": "LLM higher"
+    }
+  ],
+  "primary_holm_family": 81,
+  "supporting_mcnemar_family": 27,
+  "context_ablation_candidate_rule": "native real full catalogue; only padding excluded on BOTH sides",
+  "llm_comparison_candidate_rule": "same real catalogue minus authoritative evaluation-history items",
+  "repeated_target_policy": "retained; eligible in native context comparison, masked miss in LLM comparison",
+  "configuration_audit": [
+    {
+      "model": "SASRec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {}
+    },
+    {
+      "model": "BERT4Rec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {
+        "bert_zero_mask_buffer_minimum_one": true,
+        "bert_minimum_mask_storage_one": true,
+        "bert_forced_nonempty_training_masks": true,
+        "bert_position_zero_mask_index_sentinel": 5,
+        "forced_mask_count": 170419,
+        "forced_position_zero_mask_count": 81510
+      }
+    },
+    {
+      "model": "GRU4Rec",
+      "original_cap": 50,
+      "recent_cap": 5,
+      "other_scientific_differences": {},
+      "context_only_in_saved_checkpoint_settings": true,
+      "bert_training_safeguard": {}
+    }
+  ],
+  "effective_context_audit": [
+    {
+      "model_variant": "SASRec_50",
+      "configured_cap": 50,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 50,
+      "effective_count_distribution": {
+        "4": 1511,
+        "5": 659,
+        "6": 324,
+        "7": 184,
+        "8": 135,
+        "9": 67,
+        "10": 45,
+        "11": 42,
+        "12": 34,
+        "13": 15,
+        "14": 18,
+        "15": 12,
+        "16": 15,
+        "17": 8,
+        "18": 6,
+        "19": 6,
+        "20": 12,
+        "21": 5,
+        "22": 6,
+        "23": 7,
+        "24": 2,
+        "25": 2,
+        "27": 5,
+        "28": 1,
+        "29": 1,
+        "30": 1,
+        "31": 2,
+        "32": 2,
+        "33": 2,
+        "35": 1,
+        "43": 1,
+        "47": 1,
+        "50": 3
+      }
+    },
+    {
+      "model_variant": "SASRec_5",
+      "configured_cap": 5,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 5,
+      "effective_count_distribution": {
+        "4": 1511,
+        "5": 1624
+      }
+    },
+    {
+      "model_variant": "BERT4Rec_50",
+      "configured_cap": 50,
+      "minimum_effective_history_items": 3,
+      "maximum_effective_history_items": 49,
+      "effective_count_distribution": {
+        "3": 1511,
+        "4": 659,
+        "5": 324,
+        "6": 184,
+        "7": 135,
+        "8": 67,
+        "9": 45,
+        "10": 42,
+        "11": 34,
+        "12": 15,
+        "13": 18,
+        "14": 12,
+        "15": 15,
+        "16": 8,
+        "17": 6,
+        "18": 6,
+        "19": 12,
+        "20": 5,
+        "21": 6,
+        "22": 7,
+        "23": 2,
+        "24": 2,
+        "26": 5,
+        "27": 1,
+        "28": 1,
+        "29": 1,
+        "30": 2,
+        "31": 2,
+        "32": 2,
+        "34": 1,
+        "42": 1,
+        "46": 1,
+        "49": 3
+      }
+    },
+    {
+      "model_variant": "BERT4Rec_5",
+      "configured_cap": 5,
+      "minimum_effective_history_items": 3,
+      "maximum_effective_history_items": 4,
+      "effective_count_distribution": {
+        "3": 1511,
+        "4": 1624
+      }
+    },
+    {
+      "model_variant": "GRU4Rec_50",
+      "configured_cap": 50,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 50,
+      "effective_count_distribution": {
+        "4": 1511,
+        "5": 659,
+        "6": 324,
+        "7": 184,
+        "8": 135,
+        "9": 67,
+        "10": 45,
+        "11": 42,
+        "12": 34,
+        "13": 15,
+        "14": 18,
+        "15": 12,
+        "16": 15,
+        "17": 8,
+        "18": 6,
+        "19": 6,
+        "20": 12,
+        "21": 5,
+        "22": 6,
+        "23": 7,
+        "24": 2,
+        "25": 2,
+        "27": 5,
+        "28": 1,
+        "29": 1,
+        "30": 1,
+        "31": 2,
+        "32": 2,
+        "33": 2,
+        "35": 1,
+        "43": 1,
+        "47": 1,
+        "50": 3
+      }
+    },
+    {
+      "model_variant": "GRU4Rec_5",
+      "configured_cap": 5,
+      "minimum_effective_history_items": 4,
+      "maximum_effective_history_items": 5,
+      "effective_count_distribution": {
+        "4": 1511,
+        "5": 1624
+      }
+    }
+  ],
+  "llm_context_audit": {
+    "Qwen": {
+      "declared_max_history_length": 50,
+      "declared_recent5": false,
+      "status": "declared in generation summary"
+    },
+    "Llama": {
+      "declared_max_history_length": 50,
+      "declared_recent5": false,
+      "status": "declared in generation summary"
+    }
+  },
+  "evidence_files": [
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/checkpoints/qwen/test_predictions/per_user_metrics.jsonl",
+      "sha256": "5bc8ed3b5f389ef3d5ed410526666e47993216de486b4fbd9667bf94ef8d6ef6"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/checkpoints/qwen/test_predictions/test_metrics.json",
+      "sha256": "8062eb58ef745651963a1187c4e919534d093952e006f6c8c1e7d5787fefcd1d"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/splits/test.jsonl",
+      "sha256": "76529a9b7397caba07c542758225d03aad1b7682cccfebc4dbf9b96d92fa51dd"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/splits/item_catalogue.json",
+      "sha256": "7b8b45d6db132cc1ff712c3ffd1e8dbef4e0477416859a876d5fa5b24508e993"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/checkpoints/llama/test_predictions/per_user_metrics.jsonl",
+      "sha256": "54b92c5fb72f1a113d6ae7fabeb7c6e252a565ee7957f9c408e94e1989ea3d3c"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/checkpoints/llama/test_predictions/test_metrics.json",
+      "sha256": "5889543ad40fd3c76a5b01c6743336d7c6d3bc0f2c1a623c2571c3a03e3bec99"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/splits/test.jsonl",
+      "sha256": "76529a9b7397caba07c542758225d03aad1b7682cccfebc4dbf9b96d92fa51dd"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/splits/item_catalogue.json",
+      "sha256": "7b8b45d6db132cc1ff712c3ffd1e8dbef4e0477416859a876d5fa5b24508e993"
+    },
+    {
+      "model": "groups",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/Fashion.inter",
+      "sha256": "edf75e2e9f1ad8c2a0672c8e639bef8e18accd86b9c8be9bb3fbfd2984020fbc"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/data_audit.json",
+      "sha256": "f371bee8e51d80cc78fe963724b4e28d30ef1d8b3c3dcc85ebd760029621979f"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/selected_checkpoint.json",
+      "sha256": "63ca707f98b97a3ddcd8ccadd53b7530b6aa5d6edbadbee19277b4dbd8415caf"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/parent_config.yaml",
+      "sha256": "5ecc664753f2f5fde4cfa309e2706cb652ff3b8e6c845b1a307ea950b0518b5e"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/per_user_metrics.jsonl",
+      "sha256": "7baed6b0b4ed01753efa8cf06b226f7c0f9a1d7cb5c3d307be9caa1f345bdd2a"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/complete.json",
+      "sha256": "06d64c4c7aa10ef401d983d377c7a3999711fc9910bd3e1ba4aee4d2abda257b"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/run_summary.json",
+      "sha256": "c58b3962a3745e88e860d4f77a6e1ff4040a93e9b09549f90c5fac28e5c6e8fa"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/runtime_config.yaml",
+      "sha256": "61af88280504e558fad74e841b685791b15ff2e9d17120de3137efe480508d60"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/config.yaml",
+      "sha256": "97201edf1571330e073860cd93b45be99ff9edfc357181ca9545df1940db9886"
+    },
+    {
+      "model": "SASRec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/sasrec/test_metrics.json",
+      "sha256": "cd7f3b9782ca443bdd3db7d9437f7fa6171a99e78f1a277c59362c640e083369"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/data_audit.json",
+      "sha256": "b250bd81e992522af9209835c606a005638e36c3f9e6fb8b6ccdaf33dad5005e"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/selected_checkpoint.json",
+      "sha256": "c58e4de4ff18749dd62e8de76aa3f5a7e00c22d135a247bddc18ab18be99feea"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/parent_config.yaml",
+      "sha256": "f7f3bfe14d0f934e810f6b19ad5636fd8c30d85ab2cddbb9e2e402bb25edfca0"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/per_user_metrics.jsonl",
+      "sha256": "8613a32996488ae20e1cdb9132195960d3c53f66e3d4546dbc7285d17f54a46e"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/complete.json",
+      "sha256": "4fe6fbbe90e87de0128ed699f3278fdd9bb81b836cfec3259d68e797ec2b59fd"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/run_summary.json",
+      "sha256": "5a3c187bfaf34b342934a77ee154c9913936ba308b50bd9e177a118dfd94c0a1"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/runtime_config.yaml",
+      "sha256": "1672ec4b25ec1ba54d3a94b678104a3d5105d5b79441f6c22561da907417184c"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/config.yaml",
+      "sha256": "79d07ed2c68867f71c5495145cf42b244855c3560f7ebe802361fd70c70abce0"
+    },
+    {
+      "model": "BERT4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/bert4rec/test_metrics.json",
+      "sha256": "dd6257378581ca65c679f9967b900cec090af21db2ae60657b12cbbe5c0be44f"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/data_audit.json",
+      "sha256": "8062a74d016672567ce35e69a7540106bc2feee2724d41ceec4862e5cb8f4077"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/selected_checkpoint.json",
+      "sha256": "5372a960c0807724729fa69799a98ebb21f57ae2c0b55699655b3155a31860ad"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/parent_config.yaml",
+      "sha256": "3a691915c54a9f51d6c772f3cce5605099af76b44c790df6255a679b2c43a7ce"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/per_user_metrics.jsonl",
+      "sha256": "bb4f83bc042b52b0259089de04782d83972ddbe433d9ad58c595c73de2d9072e"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/complete.json",
+      "sha256": "56f79d249aa6fc2d02ae4d21c49b7925cdc4607998e63701ccecd382dd9090fd"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/run_summary.json",
+      "sha256": "4d22a8962756350b3dde869b5d7048077dbfd7c05ee2044b81e1cd24c217fdf6"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/runtime_config.yaml",
+      "sha256": "c5a06c8c3bf74231ce47c245a228781c5b53d81e5249adf27e7dc6c3a948f056"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/config.yaml",
+      "sha256": "49301f626fe1b7669756592d8054537decd0c35df630d9c33220195d26e68ff6"
+    },
+    {
+      "model": "GRU4Rec recent5",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/statistics/fashion/recent5_baselines/gru4rec/test_metrics.json",
+      "sha256": "e8ac6d06835d7920d63471348185e48ef349b8032579c402ddf0c8fa02bd6866"
+    },
+    {
+      "model": "SASRec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/fashion_sasrec_full_and_selective/20261014T083631_093924Z/per_user/baseline.json",
+      "sha256": "2a04038f3b3455881cd3061bead01fe07e43197f83d9821cf45c20858216df7d"
+    },
+    {
+      "model": "SASRec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/fashion_sasrec_full_and_selective/20261014T083631_093924Z/per_user/baseline.csv",
+      "sha256": "5d6ab74a72ff7c546484463d4428a911b52d481ceca163e1cb094f779eee4473"
+    },
+    {
+      "model": "BERT4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/fashion_bert4rec_full_and_selective/20261014T092828_769911Z/per_user/baseline.json",
+      "sha256": "ffb60159179198ee6c11a0d83812e6651618e7d3436ee79959d8b8455ca76ef7"
+    },
+    {
+      "model": "BERT4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/results/significance/fashion_bert4rec_full_and_selective/20261014T092828_769911Z/per_user/baseline.csv",
+      "sha256": "33b576a69dce3887b0287c9b6cc095e80ba99111628b7f0517512edd83acd3a7"
+    },
+    {
+      "model": "GRU4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/pipeline/training/results/significance/fashion_gru4rec_full_and_selective/20261014T101620_871542Z/per_user/baseline.json",
+      "sha256": "1ffdc6c92e0759eed6d7d1cc79e5d4f1fa5ecb36c065da41050f99569a8397ee"
+    },
+    {
+      "model": "GRU4Rec original50",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/pipeline/training/results/significance/fashion_gru4rec_full_and_selective/20261014T101620_871542Z/per_user/baseline.csv",
+      "sha256": "235af1b3c5ff97db7422a76d3699e500ac2fcfac11a15b876a25966784107267"
+    },
+    {
+      "model": "Qwen",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/checkpoints/qwen/test_predictions/generation_summary.json",
+      "sha256": "ce7031e3bc4c27eac0a25bc0817ca5bd118360f7991dd947a2017328fd914cba"
+    },
+    {
+      "model": "Llama",
+      "path": "/content/drive/MyDrive/Wits_Honours_Project/datasets/Fashion/processed/llm/checkpoints/llama/test_predictions/generation_summary.json",
+      "sha256": "a5528085d2bf44b65994796eb76740de53be2d485c8cf1e36a70f0b8991be784"
+    }
+  ],
+  "interpretation": "Context-associated configuration differences; a pure context attribution requires matched other settings. BERT4Rec training used the documented short-sequence safeguard. Fixed-checkpoint inference, not seed uncertainty."
+}
