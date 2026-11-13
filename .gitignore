@@ -224,3 +224,14 @@ datasets/
 
 # Deterministically generated QLoRA sweep configs
 pipeline/configs/llm/tuning/generated/
+
+# Disposable logs and terminal comparison exports. Generated inputs and run
+# metadata elsewhere under results/ are intentionally not ignored wholesale.
+/logs/*
+!/logs/.gitkeep
+/log_tensorboard/
+/results/qlora/fashion_comparison/
+/results/statistics/*/recent5_context_comparisons*/**/*.png
+/results/statistics/*/recent5_context_comparisons*/**/*.csv
+/results/statistics/*/recent5_context_comparisons*/**/paired_tests_all_81.json
+/results/statistics/*/recent5_context_comparisons*/**/interpretation.txt

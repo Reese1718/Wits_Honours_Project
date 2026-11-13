@@ -1,7 +1,0 @@
-model_variant,users,mismatched_users,exact_reproduction_within_export_rounding,status,cause,hit@10_mean_drift,ndcg@10_mean_drift,mrr@10_mean_drift,within_documented_v2_bounds
-SASRec_50,109258,0,True,reproduced,not applicable,0.0,0.0,0.0,
-SASRec_5,109258,0,True,reproduced,not applicable,0.0,0.0,0.0,
-BERT4Rec_50,109258,0,True,reproduced,not applicable,0.0,3.469446951953614e-18,0.0,
-BERT4Rec_5,109258,0,True,reproduced,not applicable,0.0,0.0,0.0,
-GRU4Rec_50,109258,0,True,reproduced,not applicable,0.0,0.0,0.0,
-GRU4Rec_5,109258,10,False,unresolved_rank_drift,not established,0.0,-2.3712197182515493e-06,-2.8729144674888296e-06,True
